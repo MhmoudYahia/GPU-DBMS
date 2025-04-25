@@ -246,6 +246,30 @@ src/DataHandling/CSVProcessor.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/sqlqueryprocessor.dir/build.make CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/CSVProcessor.cpp.s
 .PHONY : src/DataHandling/CSVProcessor.cpp.s
 
+src/DataHandling/Condition.o: src/DataHandling/Condition.cpp.o
+.PHONY : src/DataHandling/Condition.o
+
+# target to build an object file
+src/DataHandling/Condition.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sqlqueryprocessor.dir/build.make CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Condition.cpp.o
+.PHONY : src/DataHandling/Condition.cpp.o
+
+src/DataHandling/Condition.i: src/DataHandling/Condition.cpp.i
+.PHONY : src/DataHandling/Condition.i
+
+# target to preprocess a source file
+src/DataHandling/Condition.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sqlqueryprocessor.dir/build.make CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Condition.cpp.i
+.PHONY : src/DataHandling/Condition.cpp.i
+
+src/DataHandling/Condition.s: src/DataHandling/Condition.cpp.s
+.PHONY : src/DataHandling/Condition.s
+
+# target to generate assembly for a file
+src/DataHandling/Condition.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/sqlqueryprocessor.dir/build.make CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Condition.cpp.s
+.PHONY : src/DataHandling/Condition.cpp.s
+
 src/DataHandling/StorageManager.o: src/DataHandling/StorageManager.cpp.o
 .PHONY : src/DataHandling/StorageManager.o
 
@@ -652,6 +676,9 @@ help:
 	@echo "... src/DataHandling/CSVProcessor.o"
 	@echo "... src/DataHandling/CSVProcessor.i"
 	@echo "... src/DataHandling/CSVProcessor.s"
+	@echo "... src/DataHandling/Condition.o"
+	@echo "... src/DataHandling/Condition.i"
+	@echo "... src/DataHandling/Condition.s"
 	@echo "... src/DataHandling/StorageManager.o"
 	@echo "... src/DataHandling/StorageManager.i"
 	@echo "... src/DataHandling/StorageManager.s"

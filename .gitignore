@@ -1,0 +1,32 @@
+# Ignore object files and binaries
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.lib
+*.so
+*.dll
+
+# Ignore CUDA intermediate files
+*.ptx
+*.cubin
+
+# Ignore build directories
+/build/*
+bin/
+*.log
+
+# Ignore editor and IDE specific files
+*.swp
+*.swo
+*.user
+*.vcxproj*
+*.idea/
+*.vscode/
+.DS_Store
+
+# Ignore backup files
+*~
+*.bak
+*.tmp

@@ -5,6 +5,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/sqlqueryprocessor.dir/src/CLI/ResultDisplayer.cpp.o.d"
   "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/CSVProcessor.cpp.o"
   "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/CSVProcessor.cpp.o.d"
+  "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Condition.cpp.o"
+  "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Condition.cpp.o.d"
   "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/StorageManager.cpp.o"
   "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/StorageManager.cpp.o.d"
   "CMakeFiles/sqlqueryprocessor.dir/src/DataHandling/Table.cpp.o"
