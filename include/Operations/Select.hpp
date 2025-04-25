@@ -25,6 +25,7 @@ namespace GPUDBMS
          */
         Select(const Table &inputTable, const Condition &condition);
 
+
         /**
          * @brief Execute the selection operation on GPU.
          *

@@ -4,6 +4,7 @@
 #include "../include/Operations/Select.hpp"
 #include "../include/DataHandling/Table.hpp"
 #include "../include/DataHandling/Condition.hpp"
+#include "../include/Operations/Filter.hpp" // Include the header for Filter
 
 using namespace GPUDBMS;
 
@@ -40,8 +41,8 @@ Table createTestTable()
         //          << "ID: " << i << ", "
         //          << "Name: Person" << i << ", "
         //          << "Age: " << (20 + i * 5) << ", "
-        //          << "Salary: " << (50000.0 + i * 10000.0) << ", "
-        //          << "Active: " << (i % 2 == 0 ? "true" : "false") << std::endl;
+        //          << "Salary: " << (50000.0 + i * 10000.0) << ", ";
+                //  << "Active: " << (i % 2 == 0 ? "true" : "false") << std::endl;
     }
 
     return table;
@@ -137,6 +138,40 @@ void testComplexCondition()
     std::cout << "Complex condition test passed!" << std::endl;
 }
 
+void textFilter()
+{
+    std::cout << "Testing Filter operation..." << std::endl;
+
+    Table testTable = createTestTable();
+
+    // Test filter (age > 30 AND salary < 80000)
+    auto ageCondition = ConditionBuilder::greaterThan("age", "30");
+    auto salaryCondition = ConditionBuilder::lessThan("salary", "80000");
+
+    std::vector<std::unique_ptr<Condition>> conditions;
+    conditions.push_back(ConditionBuilder::greaterThan("age", "30"));
+    conditions.push_back(ConditionBuilder::lessThan("salary", "80000"));
+    auto filterOp = Filter(testTable, conditions, true);
+
+    // Execute on CPU
+    Table resultCPU = filterOp.executeCPU();
+    assert(resultCPU.getRowCount() == 0);
+
+    // Execute on GPU if available
+    try
+    {
+        Table resultGPU = filterOp.execute();
+        assert(resultGPU.getRowCount() == 0);
+        std::cout << "GPU Filter test passed!" << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "GPU execution not available: " << e.what() << std::endl;
+    }
+
+    std::cout << "CPU Filter test passed!" << std::endl;
+}
+
 int main()
 {
     try
@@ -144,6 +179,7 @@ int main()
         testSelect();
         testProject();
         testComplexCondition();
+        textFilter();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }

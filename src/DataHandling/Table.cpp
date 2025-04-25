@@ -262,6 +262,29 @@ ColumnData& Table::getColumnData(size_t columnIndex) {
     return *m_columnData[columnIndex];
 }
 
+std::vector<DataType> Table::getColumnsType()  {
+    std::vector<DataType> types;
+    for (const auto& column : m_columns) {
+        types.push_back(column.getType());
+    }
+    return types;
+}
+
+const std::vector<DataType> Table::getColumnsType() const {
+    std::vector<DataType> types;
+    for (const auto& column : m_columns) {
+        types.push_back(column.getType());
+    }
+    return types;
+}
+
+DataType Table::getColumnType(size_t columnIndex) const {
+    if (columnIndex >= m_columns.size()) {
+        throw std::out_of_range("Column index out of range");
+    }
+    return m_columns[columnIndex].getType();
+}
+
 const ColumnData& Table::getColumnData(size_t columnIndex) const {
     if (columnIndex >= m_columnData.size()) {
         throw std::out_of_range("Column index out of range");

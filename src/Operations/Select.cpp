@@ -31,12 +31,13 @@ namespace GPUDBMS
         const size_t rowCount = m_inputTable.getRowCount();
         const size_t colCount = m_inputTable.getColumnCount();
 
-
         std::unordered_map<std::string, int> columnNameToIndex;
         for (size_t i = 0; i < colCount; ++i)
         {
             columnNameToIndex[m_inputTable.getColumns()[i].getName()] = static_cast<int>(i);
         }
+
+        std::vector<DataType> colsType = m_inputTable.getColumnsType();
 
         // For each row in the input table
         for (size_t row = 0; row < rowCount; ++row)
@@ -74,7 +75,7 @@ namespace GPUDBMS
             }
 
             // Evaluate condition on this row
-            if (m_condition.evaluate(rowData, columnNameToIndex))
+            if (m_condition.evaluate(colsType,rowData, columnNameToIndex))
             {
                 // Add the row to result table if condition is satisfied
                 for (size_t col = 0; col < colCount; ++col)
@@ -114,54 +115,6 @@ namespace GPUDBMS
                 resultTable.finalizeRow();
             }
         }
-
-        return resultTable;
-    }
-
-    // Project Implementation
-    Project::Project(const Table &inputTable, const std::vector<std::string> &columnNames)
-        : m_inputTable(inputTable), m_columnNames(columnNames)
-    {
-        resolveColumnIndices();
-    }
-
-    void Project::resolveColumnIndices()
-    {
-        m_columnIndices.clear();
-        for (const auto &columnName : m_columnNames)
-        {
-            int index = m_inputTable.getColumnIndex(columnName);
-            if (index < 0)
-            {
-                throw std::runtime_error("Column not found: " + columnName);
-            }
-            m_columnIndices.push_back(index);
-        }
-    }
-
-    Table Project::execute()
-    {
-        // For now, just call CPU implementation
-        // TODO: Implement GPU version
-        return executeCPU();
-    }
-
-    Table Project::executeCPU()
-    {
-        // Create a new table with only the selected columns
-        std::vector<Column> resultColumns;
-        for (int index : m_columnIndices)
-        {
-            resultColumns.push_back(m_inputTable.getColumns()[index]);
-        }
-
-        Table resultTable(resultColumns);
-
-        // Copy data from input table to result table
-        const size_t rowCount = m_inputTable.getRowCount();
-
-        // In a real implementation, we would copy the data column by column
-        // while respecting the type of each column
 
         return resultTable;
     }

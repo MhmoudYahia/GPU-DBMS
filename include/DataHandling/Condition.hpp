@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 #include <memory>
+#include "../DataHandling/Table.hpp"
 
 namespace GPUDBMS
 {
@@ -45,6 +46,12 @@ namespace GPUDBMS
     public:
         virtual ~Condition() = default;
 
+        Condition();
+        Condition(const Condition &other);                // Copy constructor
+        Condition(Condition &&other) noexcept;            // Move constructor
+        Condition &operator=(Condition &&other) noexcept; // Move assignment operator
+        Condition &operator=(const Condition &other);     // Copy assignment operator
+
         /**
          * @brief Evaluate the condition for a given row
          *
@@ -52,7 +59,7 @@ namespace GPUDBMS
          * @param columnIndices The indices of columns in the row
          * @return bool Whether the condition is satisfied
          */
-        virtual bool evaluate(const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
+        virtual bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
 
         /**
          * @brief Get the CUDA compatible condition string for GPU execution
@@ -84,8 +91,13 @@ namespace GPUDBMS
          * @param value The value to compare against
          */
         ComparisonCondition(const std::string &columnName, ComparisonOperator op, const std::string &value);
+        ComparisonCondition(const ComparisonCondition &other);
+        ComparisonCondition &operator=(const ComparisonCondition &other);
+        ComparisonCondition(ComparisonCondition &&other) noexcept;
+        ComparisonCondition &operator=(ComparisonCondition &&other) noexcept;
+        ~ComparisonCondition() override = default;
 
-        bool evaluate(const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+        bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
         std::string getCUDACondition() const override;
         std::unique_ptr<Condition> clone() const override;
 
@@ -132,7 +144,7 @@ namespace GPUDBMS
          */
         LogicalCondition(std::unique_ptr<Condition> left, LogicalOperator op, std::unique_ptr<Condition> right = nullptr);
 
-        bool evaluate(const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+        bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
         std::string getCUDACondition() const override;
         std::unique_ptr<Condition> clone() const override;
 

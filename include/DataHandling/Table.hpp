@@ -237,6 +237,19 @@ namespace GPUDBMS
          */
         const ColumnData &getColumnData(const std::string &columnName) const;
 
+        std::vector<DataType> getColumnsType();
+
+        const std::vector<DataType> getColumnsType() const;
+
+        /**
+         * @brief Get the data type of a column by index
+         *
+         * @param columnIndex The index of the column
+         * @return DataType The data type of the column
+         */
+        DataType getColumnType(size_t columnIndex) const;
+        
+
         /**
          * @brief Create a new table with the same schema but no data
          *

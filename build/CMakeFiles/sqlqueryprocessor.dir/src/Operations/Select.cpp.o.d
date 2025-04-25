@@ -169,6 +169,7 @@ CMakeFiles/sqlqueryprocessor.dir/src/Operations/Select.cpp.o: \
  /usr/include/c++/12/pstl/glue_memory_defs.h \
  /usr/include/c++/12/pstl/execution_defs.h /usr/include/c++/12/stdexcept \
  /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/Operations/../../include/Operations/../DataHandling/Condition.hpp \
+ /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/Operations/../../include/Operations/../DataHandling/../DataHandling/Table.hpp \
  /usr/include/c++/12/iostream /usr/include/c++/12/ostream \
  /usr/include/c++/12/ios /usr/include/c++/12/bits/ios_base.h \
  /usr/include/c++/12/bits/locale_classes.h \

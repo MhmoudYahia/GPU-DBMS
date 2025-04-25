@@ -184,5 +184,7 @@ CMakeFiles/sqlqueryprocessor.dir/src/main.cpp.o: \
  /usr/include/c++/12/bits/uniform_int_dist.h \
  /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/Operations/../DataHandling/Table.hpp \
  /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/Operations/../DataHandling/Condition.hpp \
+ /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/Operations/../DataHandling/../DataHandling/Table.hpp \
  /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/DataHandling/Table.hpp \
- /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/DataHandling/Condition.hpp
+ /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/DataHandling/Condition.hpp \
+ /media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/src/../include/Operations/Filter.hpp

@@ -1,10 +1,39 @@
 #include "../../include/DataHandling/Condition.hpp"
 #include <algorithm>
+#include "../../include/DataHandling/Table.hpp" // Include the header defining DataType
 #include <regex>
 #include <sstream>
 
 namespace GPUDBMS
 {
+    // Condition implementation
+    Condition::Condition()
+    {
+    }
+    Condition::Condition(const Condition &other)
+    {
+        // Copy constructor
+    }
+    Condition &Condition::operator=(const Condition &other)
+    {
+        if (this != &other)
+        {
+            // Assignment operator
+        }
+        return *this;
+    }
+    Condition::Condition(Condition &&other) noexcept
+    {
+        // Move constructor
+    }
+    Condition &Condition::operator=(Condition &&other) noexcept
+    {
+        if (this != &other)
+        {
+            // Move assignment operator
+        }
+        return *this;
+    }
 
     // ComparisonCondition implementation
     ComparisonCondition::ComparisonCondition(const std::string &columnName, ComparisonOperator op, const std::string &value)
@@ -12,7 +41,37 @@ namespace GPUDBMS
     {
     }
 
-    bool ComparisonCondition::evaluate(const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
+    ComparisonCondition::ComparisonCondition(const ComparisonCondition &other)
+        : m_columnName(other.m_columnName), m_operator(other.m_operator), m_value(other.m_value)
+    {
+    }
+    ComparisonCondition &ComparisonCondition::operator=(const ComparisonCondition &other)
+    {
+        if (this != &other)
+        {
+            m_columnName = other.m_columnName;
+            m_operator = other.m_operator;
+            m_value = other.m_value;
+        }
+        return *this;
+    }
+
+    ComparisonCondition::ComparisonCondition(ComparisonCondition &&other) noexcept
+        : m_columnName(std::move(other.m_columnName)), m_operator(other.m_operator), m_value(std::move(other.m_value))
+    {
+    }
+    ComparisonCondition &ComparisonCondition::operator=(ComparisonCondition &&other) noexcept
+    {
+        if (this != &other)
+        {
+            m_columnName = std::move(other.m_columnName);
+            m_operator = other.m_operator;
+            m_value = std::move(other.m_value);
+        }
+        return *this;
+    }
+
+    bool ComparisonCondition::evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
     {
         // Find the index of the column in columnIndices
         auto it = columnNameToIndex.find(m_columnName);
@@ -23,27 +82,58 @@ namespace GPUDBMS
         }
 
         int index = it->second;
-        if (index >= row.size())
+        if (index >= row.size() || index >= colsType.size())
         {
             return false; // Invalid index
         }
 
         const std::string &cellValue = row[index];
+        const DataType &colType = colsType[index];
 
         switch (m_operator)
         {
         case ComparisonOperator::EQUAL:
-            return cellValue == m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) == std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) == std::stof(m_value);
+            else
+                return cellValue == m_value;
         case ComparisonOperator::NOT_EQUAL:
-            return cellValue != m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) != std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) != std::stof(m_value);
+            else
+                return cellValue != m_value;
         case ComparisonOperator::LESS_THAN:
-            return cellValue < m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) < std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) < std::stof(m_value);
+            else
+                return cellValue < m_value;
         case ComparisonOperator::LESS_EQUAL:
-            return cellValue <= m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) <= std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) <= std::stof(m_value);
+            else
+                return cellValue <= m_value;
         case ComparisonOperator::GREATER_THAN:
-            return cellValue > m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) > std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) > std::stof(m_value);
+            else
+                return cellValue > m_value;
         case ComparisonOperator::GREATER_EQUAL:
-            return cellValue >= m_value;
+            if (colType == DataType::INT)
+                return std::stoi(cellValue) >= std::stoi(m_value);
+            else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
+                return std::stof(cellValue) >= std::stof(m_value);
+            else
+                return cellValue >= m_value;
         case ComparisonOperator::LIKE:
         {
             // Simple wildcard pattern matching (% matches any sequence)
@@ -132,16 +222,16 @@ namespace GPUDBMS
     {
     }
 
-    bool LogicalCondition::evaluate(const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
+    bool LogicalCondition::evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
     {
         switch (m_operator)
         {
         case LogicalOperator::AND:
-            return m_left->evaluate(row, columnNameToIndex) && m_right->evaluate(row, columnNameToIndex);
+            return m_left->evaluate(colsType, row, columnNameToIndex) && m_right->evaluate(colsType, row, columnNameToIndex);
         case LogicalOperator::OR:
-            return m_left->evaluate(row, columnNameToIndex) || m_right->evaluate(row, columnNameToIndex);
+            return m_left->evaluate(colsType, row, columnNameToIndex) || m_right->evaluate(colsType, row, columnNameToIndex);
         case LogicalOperator::NOT:
-            return !m_left->evaluate(row, columnNameToIndex);
+            return !m_left->evaluate(colsType, row, columnNameToIndex);
         default:
             return false;
         }
