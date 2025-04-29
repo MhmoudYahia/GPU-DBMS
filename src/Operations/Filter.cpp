@@ -2,7 +2,6 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-<<<<<<< Updated upstream
 
 namespace GPUDBMS
 {
@@ -15,16 +14,6 @@ namespace GPUDBMS
         {
             m_conditions.push_back(cond->clone());
         }
-=======
-#include <unordered_map>
-
-namespace GPUDBMS
-{
-    // Filter Implementation
-    Filter::Filter(const Table &inputTable, const Condition &condition)
-        : m_inputTable(inputTable), m_condition(condition)
-    {
->>>>>>> Stashed changes
     }
 
     Table Filter::execute()
@@ -40,29 +29,18 @@ namespace GPUDBMS
         const size_t rowCount = m_inputTable.getRowCount();
         const size_t colCount = m_inputTable.getColumnCount();
 
-<<<<<<< Updated upstream
-=======
-        // Create a column name to index mapping
->>>>>>> Stashed changes
         std::unordered_map<std::string, int> columnNameToIndex;
         for (size_t i = 0; i < colCount; ++i)
         {
             columnNameToIndex[m_inputTable.getColumns()[i].getName()] = static_cast<int>(i);
         }
 
-<<<<<<< Updated upstream
         std::vector<DataType> colsType = m_inputTable.getColumnsType();
 
         // For each row in the input table
         for (size_t row = 0; row < rowCount; ++row)
         {
             // Extract current row data
-=======
-        // For each row in the input table
-        for (size_t row = 0; row < rowCount; ++row)
-        {
-            // Extract current row data for condition evaluation
->>>>>>> Stashed changes
             std::vector<std::string> rowData(colCount);
             for (size_t col = 0; col < colCount; ++col)
             {
@@ -77,11 +55,8 @@ namespace GPUDBMS
                     rowData[col] = std::to_string(m_inputTable.getFloatValue(col, row));
                     break;
                 case DataType::STRING:
-<<<<<<< Updated upstream
                     rowData[col] = m_inputTable.getStringValue(col, row);
                     break;
-=======
->>>>>>> Stashed changes
                 case DataType::VARCHAR:
                     rowData[col] = m_inputTable.getStringValue(col, row);
                     break;
@@ -96,7 +71,6 @@ namespace GPUDBMS
                 }
             }
 
-<<<<<<< Updated upstream
             // Evaluate all conditions on this row
             bool rowSatisfiesConditions;
 
@@ -130,12 +104,6 @@ namespace GPUDBMS
             // Add the row to result table if it satisfies the combined conditions
             if (rowSatisfiesConditions)
             {
-=======
-            // Evaluate condition on this row
-            if (m_condition.evaluate(rowData, columnNameToIndex))
-            {
-                // Add the row to result table if condition is satisfied
->>>>>>> Stashed changes
                 for (size_t col = 0; col < colCount; ++col)
                 {
                     const auto &column = m_inputTable.getColumns()[col];
@@ -148,11 +116,8 @@ namespace GPUDBMS
                         resultTable.appendFloatValue(col, m_inputTable.getFloatValue(col, row));
                         break;
                     case DataType::STRING:
-<<<<<<< Updated upstream
                         resultTable.appendStringValue(col, m_inputTable.getStringValue(col, row));
                         break;
-=======
->>>>>>> Stashed changes
                     case DataType::VARCHAR:
                         resultTable.appendStringValue(col, m_inputTable.getStringValue(col, row));
                         break;
@@ -163,11 +128,7 @@ namespace GPUDBMS
                         resultTable.appendBoolValue(col, m_inputTable.getBoolValue(col, row));
                         break;
                     default:
-<<<<<<< Updated upstream
                         // Handle default case or ignore
-=======
-                        // Ignore unsupported types
->>>>>>> Stashed changes
                         break;
                     }
                 }
