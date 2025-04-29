@@ -14,10 +14,10 @@ namespace GPUDBMS
      */
     enum class JoinType
     {
-        INNER,
-        LEFT,
-        RIGHT,
-        FULL
+        INNER,   // Only matching rows
+        LEFT,    // All rows from left table, matching rows from right
+        RIGHT,   // All rows from right table, matching rows from left
+        FULL     // All rows from both tables
     };
 
     /**
@@ -33,9 +33,10 @@ namespace GPUDBMS
          * @param leftTable The left table in the join
          * @param rightTable The right table in the join
          * @param condition The join condition
-         * @param type The type of join (defaults to INNER)
+         * @param joinType The type of join (defaults to INNER)
          */
-        Join(const Table &leftTable, const Table &rightTable, const Condition &condition, JoinType type = JoinType::INNER);
+        Join(const Table &leftTable, const Table &rightTable, 
+             const Condition &condition, JoinType joinType = JoinType::INNER);
 
         /**
          * @brief Execute the join operation using GPU acceleration

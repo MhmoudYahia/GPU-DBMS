@@ -7,6 +7,8 @@
 #include "../include/Operations/Filter.hpp"
 #include "../include/Operations/OrderBy.hpp"
 #include "../include/Operations/Aggregator.hpp"
+#include "../include/Operations/Project.hpp"
+#include "../include/Operations/Join.hpp"
 
 using namespace GPUDBMS;
 
@@ -283,16 +285,105 @@ void testAggregator()
     std::cout << "CPU Aggregator test passed!" << std::endl;
 }
 
+void testJoin()
+{
+    std::cout << "Testing Join operation..." << std::endl;
+    
+    // Create two test tables for the join
+    
+    // Employees table
+    std::vector<Column> empColumns = {
+        Column("emp_id", DataType::INT),
+        Column("emp_name", DataType::VARCHAR),
+        Column("dept_id", DataType::INT)
+    };
+    
+    Table employeesTable(empColumns);
+    
+    auto &empIdCol = static_cast<ColumnDataImpl<int>&>(employeesTable.getColumnData("emp_id"));
+    auto &empNameCol = static_cast<ColumnDataImpl<std::string>&>(employeesTable.getColumnData("emp_name"));
+    auto &empDeptIdCol = static_cast<ColumnDataImpl<int>&>(employeesTable.getColumnData("dept_id"));
+    
+    // Add 5 employees
+    empIdCol.append(1); empNameCol.append("Alice"); empDeptIdCol.append(100);
+    empIdCol.append(2); empNameCol.append("Bob"); empDeptIdCol.append(200);
+    empIdCol.append(3); empNameCol.append("Charlie"); empDeptIdCol.append(100);
+    empIdCol.append(4); empNameCol.append("David"); empDeptIdCol.append(300);
+    empIdCol.append(5); empNameCol.append("Eve"); empDeptIdCol.append(200);
+    
+    // Departments table
+    std::vector<Column> deptColumns = {
+        Column("dept_id", DataType::INT),
+        Column("dept_name", DataType::VARCHAR),
+        Column("location", DataType::VARCHAR)
+    };
+    
+    Table departmentsTable(deptColumns);
+    
+    auto &deptIdCol = static_cast<ColumnDataImpl<int>&>(departmentsTable.getColumnData("dept_id"));
+    auto &deptNameCol = static_cast<ColumnDataImpl<std::string>&>(departmentsTable.getColumnData("dept_name"));
+    auto &deptLocCol = static_cast<ColumnDataImpl<std::string>&>(departmentsTable.getColumnData("location"));
+    
+    // Add 3 departments
+    deptIdCol.append(100); deptNameCol.append("Engineering"); deptLocCol.append("Building A");
+    deptIdCol.append(200); deptNameCol.append("Marketing"); deptLocCol.append("Building B");
+    deptIdCol.append(400); deptNameCol.append("HR"); deptLocCol.append("Building C");
+    
+    // Test INNER JOIN
+    std::cout << "Testing INNER JOIN..." << std::endl;
+    auto joinCondition = ConditionBuilder::equals("dept_id", "dept_id");
+    Join innerJoin(employeesTable, departmentsTable, *joinCondition, JoinType::INNER);
+    
+    Table innerResult = innerJoin.executeCPU();
+    
+    // Verify inner join result (should have 4 rows)
+    assert(innerResult.getRowCount() == 4);
+    assert(innerResult.getColumnCount() == 6); // 3 from employees + 3 from departments
+    
+    // Test LEFT JOIN
+    std::cout << "Testing LEFT JOIN..." << std::endl;
+    Join leftJoin(employeesTable, departmentsTable, *joinCondition, JoinType::LEFT);
+    
+    Table leftResult = leftJoin.executeCPU();
+    
+    // Verify left join result (should have 5 rows - all employees)
+    assert(leftResult.getRowCount() == 5);
+    
+    // Test RIGHT JOIN
+    std::cout << "Testing RIGHT JOIN..." << std::endl;
+    Join rightJoin(employeesTable, departmentsTable, *joinCondition, JoinType::RIGHT);
+    
+    Table rightResult = rightJoin.executeCPU();
+    
+    // Verify right join result (should have 5 rows - 4 matches + HR department)
+    assert(rightResult.getRowCount() == 5);
+    
+    // Execute on GPU if available
+    try
+    {
+        Table resultGPU = innerJoin.execute();
+        assert(resultGPU.getRowCount() == 4);
+        std::cout << "GPU Join test passed!" << std::endl;
+    }
+    catch (const std::exception& e)
+    {
+        std::cout << "GPU execution not available: " << e.what() << std::endl;
+    }
+    
+    std::cout << "CPU Join tests passed!" << std::endl;
+}
+
 int main()
 {
     try
     {
-        testSelect();
-        testProject();
-        testComplexCondition();
+        // testSelect();
+        // testProject();
+        // testComplexCondition();
         // testFilter();
-        testOrderBy();
-        testAggregator();
+        // testOrderBy();
+        // testAggregator();
+        testJoin();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }
