@@ -96,7 +96,7 @@ namespace GPUDBMS
             {
                 throw std::out_of_range("Index out of range");
             }
-            return m_data.at(index);
+            return m_data[index];
         }
 
         const std::vector<T> &getData() const

@@ -386,7 +386,7 @@ void testJoin()
     std::cout << "CPU Join test passed!" << std::endl;
 }
 
-void testSelectQueryParser(auto processor)
+void testSelectQueryParser(SQLQueryProcessor& processor)
 {
 
     try
@@ -411,7 +411,7 @@ void testSelectQueryParser(auto processor)
     }
 }
 
-void testAggregationsParser(auto processor)
+void testAggregationsParser(SQLQueryProcessor& processor)
 {
     try
     {

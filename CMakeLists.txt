@@ -4,19 +4,22 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
+# Set project first to avoid re-evaluation issues
+project(SQLQueryProcessor LANGUAGES CXX)
+
 # Check if CUDA is available
 include(CheckLanguage)
 check_language(CUDA)
 if(CMAKE_CUDA_COMPILER)
-    project(SQLQueryProcessor LANGUAGES CXX CUDA)
+    enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 14)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_61")
     set(CUDA_AVAILABLE TRUE)
+    message(STATUS "CUDA found, enabling GPU functionality.")
 else()
-    project(SQLQueryProcessor LANGUAGES CXX)
     set(CUDA_AVAILABLE FALSE)
-    message(WARNING "CUDA not found, GPU functionality will be disabled.")
+    message(STATUS "CUDA not found, GPU functionality will be disabled.")
 endif()
 
 # C++ Standard
@@ -76,12 +79,17 @@ find_path(SQLPARSER_INCLUDE_DIR hsql/SQLParser.h
 find_library(SQLPARSER_LIBRARY sqlparser
   HINTS /usr/local/lib)
 
-include_directories(${SQLPARSER_INCLUDE_DIR})
+if(SQLPARSER_INCLUDE_DIR AND SQLPARSER_LIBRARY)
+  message(STATUS "SQL Parser found: ${SQLPARSER_LIBRARY}")
+  include_directories(${SQLPARSER_INCLUDE_DIR})
 
-# Add the new SQLProcessing sources
-set(SOURCES 
-    ${SOURCES}
-    src/SQLProcessing/SQLQueryProcessor.cpp)
+  # Add the new SQLProcessing sources
+  set(SOURCES 
+      ${SOURCES}
+      src/SQLProcessing/SQLQueryProcessor.cpp)
 
-# Link against the SQL parser library
-target_link_libraries(sqlqueryprocessor ${SQLPARSER_LIBRARY})
+  # Link against the SQL parser library
+  target_link_libraries(sqlqueryprocessor PRIVATE ${SQLPARSER_LIBRARY})
+else()
+  message(FATAL_ERROR "SQL Parser not found. Please install the SQL Parser library or specify its location.")
+endif()
