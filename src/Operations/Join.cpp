@@ -1,9 +1,10 @@
 #include "../../include/Operations/Join.hpp"
-#include <unordered_map>
-#include <iostream>
 #include <algorithm>
-#include <vector>
+#include <iostream>
+#include <unordered_map>
+#include <string>
 #include <unordered_set>
+#include <stdexcept>
 
 namespace GPUDBMS
 {
@@ -14,51 +15,40 @@ namespace GPUDBMS
     {
     }
 
-    Table Join::execute()
-    {
-        // For now, just call CPU implementation
-        // TODO: Implement GPU version
-        return executeCPU();
-    }
-
     std::vector<Column> Join::createResultSchema() const
     {
         std::vector<Column> resultColumns;
+        std::unordered_set<std::string> columnNames;
 
         // Add all columns from left table
         for (const auto &column : m_leftTable.getColumns())
         {
             resultColumns.push_back(column);
+            columnNames.insert(column.getName());
         }
 
-        // Add columns from right table, handling name conflicts
+        // Add all columns from right table with prefix if there's a name conflict
         for (const auto &column : m_rightTable.getColumns())
         {
-            std::string colName = column.getName();
+            std::string columnName = column.getName();
 
-            // Check for conflicts with left table columns
-            bool hasConflict = false;
-            for (const auto &leftCol : m_leftTable.getColumns())
+            // If column name already exists, prefix it with "right_"
+            if (columnNames.find(columnName) != columnNames.end())
             {
-                if (leftCol.getName() == colName)
-                {
-                    hasConflict = true;
-                    break;
-                }
+                columnName = "right_" + columnName;
             }
 
-            // If there's a name conflict, prefix with right_
-            if (hasConflict)
-            {
-                resultColumns.push_back(Column("right_" + colName, column.getType()));
-            }
-            else
-            {
-                resultColumns.push_back(column);
-            }
+            resultColumns.push_back(Column(columnName, column.getType()));
+            columnNames.insert(columnName);
         }
 
         return resultColumns;
+    }
+
+    Table Join::execute()
+    {
+        // For now, just call CPU implementation
+        return executeCPU();
     }
 
     Table Join::executeCPU()
@@ -67,280 +57,283 @@ namespace GPUDBMS
         std::vector<Column> resultColumns = createResultSchema();
         Table resultTable(resultColumns);
 
-        // Prepare column name to index maps for both tables
+        // Maps to track column names across tables
         std::unordered_map<std::string, int> leftColumnMap;
-        std::unordered_map<std::string, int> rightColumnMap;
+        std::unordered_map<std::string, DataType> leftColumnTypes;
 
         for (size_t i = 0; i < m_leftTable.getColumnCount(); ++i)
         {
-            leftColumnMap[m_leftTable.getColumns()[i].getName()] = static_cast<int>(i);
+            const auto &column = m_leftTable.getColumns()[i];
+            leftColumnMap[column.getName()] = i;
+            leftColumnTypes[column.getName()] = column.getType();
         }
+
+        std::unordered_map<std::string, int> rightColumnMap;
+        std::unordered_map<std::string, DataType> rightColumnTypes;
 
         for (size_t i = 0; i < m_rightTable.getColumnCount(); ++i)
         {
-            rightColumnMap[m_rightTable.getColumns()[i].getName()] = static_cast<int>(i);
+            const auto &column = m_rightTable.getColumns()[i];
+            rightColumnMap[column.getName()] = i;
+            rightColumnTypes[column.getName()] = column.getType();
         }
 
-        // Track which column names have conflicts (need right_ prefix)
-        std::unordered_set<std::string> conflictingNames;
-
-        for (const auto &leftCol : m_leftTable.getColumns())
-        {
-            for (const auto &rightCol : m_rightTable.getColumns())
-            {
-                if (leftCol.getName() == rightCol.getName())
-                {
-                    conflictingNames.insert(leftCol.getName());
-                    break;
-                }
-            }
-        }
-
-        std::vector<DataType> leftColTypes = m_leftTable.getColumnsType();
-        std::vector<DataType> rightColTypes = m_rightTable.getColumnsType();
-
-        // Debug: Print column info
-        std::cout << "Left table columns:" << std::endl;
-        for (const auto &col : m_leftTable.getColumns())
-        {
-            std::cout << "  " << col.getName() << std::endl;
-        }
-
-        std::cout << "Right table columns:" << std::endl;
-        for (const auto &col : m_rightTable.getColumns())
-        {
-            std::cout << "  " << col.getName() << std::endl;
-        }
-
-        std::cout << "Conflicting column names:" << std::endl;
-        for (const auto &name : conflictingNames)
-        {
-            std::cout << "  " << name << std::endl;
-        }
-
-        // Process each row in the left table
+        // For each row in the left table
         for (size_t leftRow = 0; leftRow < m_leftTable.getRowCount(); ++leftRow)
         {
-            bool matchFound = false;
+            bool leftRowMatched = false;
 
-            // Process each row in the right table
+            // For each row in the right table
             for (size_t rightRow = 0; rightRow < m_rightTable.getRowCount(); ++rightRow)
             {
-                // Create combined row data for condition evaluation
-                std::vector<std::string> combinedData;
-                std::unordered_map<std::string, int> combinedColumnMap;
+                // Build the combined row data for condition evaluation
+                std::vector<std::string> combinedRowData;
+                std::vector<DataType> combinedColTypes;
+                std::unordered_map<std::string, int> columnNameToIndex;
 
-                // First, add all columns from left table
+                // First, prepare all column indices
+                int colIndex = 0;
+                
+                // Add left table columns to the index map
                 for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col)
                 {
                     const auto &column = m_leftTable.getColumns()[col];
-                    std::string colName = column.getName();
-                    combinedColumnMap[colName] = combinedData.size();
-
-                    // Convert value to string based on type
-                    switch (column.getType())
-                    {
-                    case DataType::INT:
-                        combinedData.push_back(std::to_string(m_leftTable.getIntValue(col, leftRow)));
-                        break;
-                    case DataType::FLOAT:
-                        combinedData.push_back(std::to_string(m_leftTable.getFloatValue(col, leftRow)));
-                        break;
-                    case DataType::DOUBLE:
-                        combinedData.push_back(std::to_string(m_leftTable.getDoubleValue(col, leftRow)));
-                        break;
-                    case DataType::VARCHAR:
-                    case DataType::STRING:
-                        combinedData.push_back(m_leftTable.getStringValue(col, leftRow));
-                        break;
-                    case DataType::BOOL:
-                        combinedData.push_back(m_leftTable.getBoolValue(col, leftRow) ? "true" : "false");
-                        break;
-                    }
+                    columnNameToIndex[column.getName()] = colIndex++;
                 }
-
-                // Then add all columns from right table
+                
+                // Store the starting index for right table columns
+                int rightStartIndex = colIndex;
+                
+                // Add right table columns to the index map
                 for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col)
                 {
                     const auto &column = m_rightTable.getColumns()[col];
-                    std::string colName = column.getName();
-                    std::string mappedName = colName;
-
-                    // Check if this column name conflicts with a left table column
-                    if (conflictingNames.find(colName) != conflictingNames.end())
-                    {
-                        mappedName = "right_" + colName;
-                    }
-
-                    combinedColumnMap[mappedName] = combinedData.size();
-
-                    // Convert value to string based on type
-                    switch (column.getType())
-                    {
-                    case DataType::INT:
-                        combinedData.push_back(std::to_string(m_rightTable.getIntValue(col, rightRow)));
-                        break;
-                    case DataType::FLOAT:
-                        combinedData.push_back(std::to_string(m_rightTable.getFloatValue(col, rightRow)));
-                        break;
-                    case DataType::DOUBLE:
-                        combinedData.push_back(std::to_string(m_rightTable.getDoubleValue(col, rightRow)));
-                        break;
-                    case DataType::VARCHAR:
-                    case DataType::STRING:
-                        combinedData.push_back(m_rightTable.getStringValue(col, rightRow));
-                        break;
-                    case DataType::BOOL:
-                        combinedData.push_back(m_rightTable.getBoolValue(col, rightRow) ? "true" : "false");
-                        break;
-                    }
+                    // Add both the original name and the prefixed name
+                    std::string originalKey = column.getName();
+                    std::string prefixedKey = "right_" + originalKey;
+                    
+                    columnNameToIndex[originalKey] = colIndex; // For the condition evaluation
+                    columnNameToIndex[prefixedKey] = colIndex; // For result table access
+                    
+                    colIndex++;
                 }
-
-                // Debug: Print combined column map and data for first rows
-                if (leftRow == 0 && rightRow == 0)
+                
+                // Now reset the column index to build the actual row data
+                colIndex = 0;
+                
+                // Add data from left table
+                for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col)
                 {
-                    std::cout << "Debug - Combined column map:" << std::endl;
-                    for (const auto &[key, value] : combinedColumnMap)
+                    const auto &column = m_leftTable.getColumns()[col];
+                    
+                    std::string cellValue;
+                    try
                     {
-                        std::cout << "  " << key << " -> " << value << " (" << combinedData[value] << ")" << std::endl;
+                        switch (column.getType())
+                        {
+                        case DataType::INT:
+                            cellValue = std::to_string(m_leftTable.getIntValue(col, leftRow));
+                            break;
+                        case DataType::FLOAT:
+                            cellValue = std::to_string(m_leftTable.getFloatValue(col, leftRow));
+                            break;
+                        case DataType::DOUBLE:
+                            cellValue = std::to_string(m_leftTable.getDoubleValue(col, leftRow));
+                            break;
+                        case DataType::VARCHAR:
+                        case DataType::STRING:
+                            cellValue = m_leftTable.getStringValue(col, leftRow);
+                            break;
+                        case DataType::BOOL:
+                            cellValue = m_leftTable.getBoolValue(col, leftRow) ? "true" : "false";
+                            break;
+                        }
                     }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Error getting value from left table column " << column.getName() << ": " << e.what() << std::endl;
+                        cellValue = "0"; // Default to safe value
+                    }
+
+                    combinedRowData.push_back(cellValue);
+                    combinedColTypes.push_back(column.getType());
+                    colIndex++;
                 }
 
-                // Try to evaluate the join condition
+                // Add data from right table
+                for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col)
+                {
+                    const auto &column = m_rightTable.getColumns()[col];
+                    
+                    std::string cellValue;
+                    try
+                    {
+                        switch (column.getType())
+                        {
+                        case DataType::INT:
+                            cellValue = std::to_string(m_rightTable.getIntValue(col, rightRow));
+                            break;
+                        case DataType::FLOAT:
+                            cellValue = std::to_string(m_rightTable.getFloatValue(col, rightRow));
+                            break;
+                        case DataType::DOUBLE:
+                            cellValue = std::to_string(m_rightTable.getDoubleValue(col, rightRow));
+                            break;
+                        case DataType::VARCHAR:
+                        case DataType::STRING:
+                            cellValue = m_rightTable.getStringValue(col, rightRow);
+                            break;
+                        case DataType::BOOL:
+                            cellValue = m_rightTable.getBoolValue(col, rightRow) ? "true" : "false";
+                            break;
+                        }
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Error getting value from right table column " << column.getName() << ": " << e.what() << std::endl;
+                        cellValue = "0"; // Default to safe value
+                    }
+
+                    combinedRowData.push_back(cellValue);
+                    combinedColTypes.push_back(column.getType());
+                    colIndex++;
+                }
+
+                // Debug output after all data is prepared
+                std::cout << "DEBUG: Left row " << leftRow << ", Right row " << rightRow << std::endl;
+                std::cout << "DEBUG: Column name to index map: " << std::endl;
+                for (const auto &entry : columnNameToIndex)
+                {
+                    std::cout << "  " << entry.first << " -> " << entry.second << std::endl;
+                }
+                
+                // Evaluate join condition
+                bool matchResult = false;
                 try
                 {
-                    // Need to provide the column types as the third parameter
-                    std::vector<DataType> combinedColTypes;
-                    // Add types from left table
-                    for (size_t i = 0; i < m_leftTable.getColumnCount(); ++i)
-                    {
-                        combinedColTypes.push_back(m_leftTable.getColumns()[i].getType());
-                    }
-                    // Add types from right table
-                    for (size_t i = 0; i < m_rightTable.getColumnCount(); ++i)
-                    {
-                        combinedColTypes.push_back(m_rightTable.getColumns()[i].getType());
-                    }
-
-                    if (m_condition.evaluate(combinedColTypes, combinedData, combinedColumnMap))
-                    {
-                        matchFound = true;
-
-                        // Add row to result table (first left columns, then right columns)
-                        size_t resultCol = 0;
-
-                        // Add values from left table
-                        for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col, ++resultCol)
-                        {
-                            const auto &column = m_leftTable.getColumns()[col];
-                            switch (column.getType())
-                            {
-                            case DataType::INT:
-                                resultTable.appendIntValue(resultCol, m_leftTable.getIntValue(col, leftRow));
-                                break;
-                            case DataType::FLOAT:
-                                resultTable.appendFloatValue(resultCol, m_leftTable.getFloatValue(col, leftRow));
-                                break;
-                            case DataType::DOUBLE:
-                                resultTable.appendDoubleValue(resultCol, m_leftTable.getDoubleValue(col, leftRow));
-                                break;
-                            case DataType::VARCHAR:
-                            case DataType::STRING:
-                                resultTable.appendStringValue(resultCol, m_leftTable.getStringValue(col, leftRow));
-                                break;
-                            case DataType::BOOL:
-                                resultTable.appendBoolValue(resultCol, m_leftTable.getBoolValue(col, leftRow));
-                                break;
-                            }
-                        }
-
-                        // Add values from right table
-                        for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col, ++resultCol)
-                        {
-                            const auto &column = m_rightTable.getColumns()[col];
-                            switch (column.getType())
-                            {
-                            case DataType::INT:
-                                resultTable.appendIntValue(resultCol, m_rightTable.getIntValue(col, rightRow));
-                                break;
-                            case DataType::FLOAT:
-                                resultTable.appendFloatValue(resultCol, m_rightTable.getFloatValue(col, rightRow));
-                                break;
-                            case DataType::DOUBLE:
-                                resultTable.appendDoubleValue(resultCol, m_rightTable.getDoubleValue(col, rightRow));
-                                break;
-                            case DataType::VARCHAR:
-                            case DataType::STRING:
-                                resultTable.appendStringValue(resultCol, m_rightTable.getStringValue(col, rightRow));
-                                break;
-                            case DataType::BOOL:
-                                resultTable.appendBoolValue(resultCol, m_rightTable.getBoolValue(col, rightRow));
-                                break;
-                            }
-                        }
-
-                        resultTable.finalizeRow();
-                    }
+                    matchResult = m_condition.evaluate(combinedColTypes, combinedRowData, columnNameToIndex);
                 }
                 catch (const std::exception &e)
                 {
                     std::cerr << "Error evaluating join condition: " << e.what() << std::endl;
-                    std::cerr << "Left row: " << leftRow << ", Right row: " << rightRow << std::endl;
                     // Continue to next row pair
+                    continue;
+                }
+
+                if (matchResult)
+                {
+                    leftRowMatched = true;
+
+                    // Add joined row to result table
+                    // First add columns from left table
+                    for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col)
+                    {
+                        const auto &column = m_leftTable.getColumns()[col];
+                        switch (column.getType())
+                        {
+                        case DataType::INT:
+                            resultTable.appendIntValue(col, m_leftTable.getIntValue(col, leftRow));
+                            break;
+                        case DataType::FLOAT:
+                            resultTable.appendFloatValue(col, m_leftTable.getFloatValue(col, leftRow));
+                            break;
+                        case DataType::DOUBLE:
+                            resultTable.appendDoubleValue(col, m_leftTable.getDoubleValue(col, leftRow));
+                            break;
+                        case DataType::VARCHAR:
+                        case DataType::STRING:
+                            resultTable.appendStringValue(col, m_leftTable.getStringValue(col, leftRow));
+                            break;
+                        case DataType::BOOL:
+                            resultTable.appendBoolValue(col, m_leftTable.getBoolValue(col, leftRow));
+                            break;
+                        }
+                    }
+
+                    // Add columns from right table (with renamed columns to avoid duplicates)
+                    size_t resultColIndex = m_leftTable.getColumnCount();
+                    for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col)
+                    {
+                        const auto &column = m_rightTable.getColumns()[col];
+
+                        switch (column.getType())
+                        {
+                        case DataType::INT:
+                            resultTable.appendIntValue(resultColIndex, m_rightTable.getIntValue(col, rightRow));
+                            break;
+                        case DataType::FLOAT:
+                            resultTable.appendFloatValue(resultColIndex, m_rightTable.getFloatValue(col, rightRow));
+                            break;
+                        case DataType::DOUBLE:
+                            resultTable.appendDoubleValue(resultColIndex, m_rightTable.getDoubleValue(col, rightRow));
+                            break;
+                        case DataType::VARCHAR:
+                        case DataType::STRING:
+                            resultTable.appendStringValue(resultColIndex, m_rightTable.getStringValue(col, rightRow));
+                            break;
+                        case DataType::BOOL:
+                            resultTable.appendBoolValue(resultColIndex, m_rightTable.getBoolValue(col, rightRow));
+                            break;
+                        }
+
+                        resultColIndex++;
+                    }
+
+                    resultTable.finalizeRow();
                 }
             }
 
-            // For LEFT and FULL joins, add the left row with NULL values for right table if no match found
-            if (!matchFound && (m_joinType == JoinType::LEFT || m_joinType == JoinType::FULL))
+            // Handle LEFT JOIN unmatched rows
+            if (!leftRowMatched && (m_joinType == JoinType::LEFT || m_joinType == JoinType::FULL))
             {
-                size_t resultCol = 0;
-
-                // Add values from left table
-                for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col, ++resultCol)
+                // Add left row with NULL values for right columns
+                for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col)
                 {
                     const auto &column = m_leftTable.getColumns()[col];
                     switch (column.getType())
                     {
                     case DataType::INT:
-                        resultTable.appendIntValue(resultCol, m_leftTable.getIntValue(col, leftRow));
+                        resultTable.appendIntValue(col, m_leftTable.getIntValue(col, leftRow));
                         break;
                     case DataType::FLOAT:
-                        resultTable.appendFloatValue(resultCol, m_leftTable.getFloatValue(col, leftRow));
+                        resultTable.appendFloatValue(col, m_leftTable.getFloatValue(col, leftRow));
                         break;
                     case DataType::DOUBLE:
-                        resultTable.appendDoubleValue(resultCol, m_leftTable.getDoubleValue(col, leftRow));
+                        resultTable.appendDoubleValue(col, m_leftTable.getDoubleValue(col, leftRow));
                         break;
                     case DataType::VARCHAR:
                     case DataType::STRING:
-                        resultTable.appendStringValue(resultCol, m_leftTable.getStringValue(col, leftRow));
+                        resultTable.appendStringValue(col, m_leftTable.getStringValue(col, leftRow));
                         break;
                     case DataType::BOOL:
-                        resultTable.appendBoolValue(resultCol, m_leftTable.getBoolValue(col, leftRow));
+                        resultTable.appendBoolValue(col, m_leftTable.getBoolValue(col, leftRow));
                         break;
                     }
                 }
 
-                // Add NULL values for right table
-                for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col, ++resultCol)
+                // Add NULL values for right table columns
+                for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col)
                 {
                     const auto &column = m_rightTable.getColumns()[col];
+                    const size_t resultColIndex = m_leftTable.getColumnCount() + col;
+
                     switch (column.getType())
                     {
                     case DataType::INT:
-                        resultTable.appendIntValue(resultCol, 0); // NULL for int
+                        resultTable.appendIntValue(resultColIndex, 0); // Default value for NULL
                         break;
                     case DataType::FLOAT:
-                        resultTable.appendFloatValue(resultCol, 0.0f); // NULL for float
+                        resultTable.appendFloatValue(resultColIndex, 0.0f);
                         break;
                     case DataType::DOUBLE:
-                        resultTable.appendDoubleValue(resultCol, 0.0); // NULL for double
+                        resultTable.appendDoubleValue(resultColIndex, 0.0);
                         break;
                     case DataType::VARCHAR:
                     case DataType::STRING:
-                        resultTable.appendStringValue(resultCol, "NULL"); // NULL for string
+                        resultTable.appendStringValue(resultColIndex, "");
                         break;
                     case DataType::BOOL:
-                        resultTable.appendBoolValue(resultCol, false); // NULL for bool
+                        resultTable.appendBoolValue(resultColIndex, false);
                         break;
                     }
                 }
@@ -349,179 +342,7 @@ namespace GPUDBMS
             }
         }
 
-        // For RIGHT and FULL joins, add right rows that don't match any left row
-        if (m_joinType == JoinType::RIGHT || m_joinType == JoinType::FULL)
-        {
-            // Track right rows that have been matched
-            std::vector<bool> rightRowMatched(m_rightTable.getRowCount(), false);
+        return resultTable;
+    }
 
-            // Find which right rows matched with any left row
-            for (size_t leftRow = 0; leftRow < m_leftTable.getRowCount(); ++leftRow)
-            {
-                for (size_t rightRow = 0; rightRow < m_rightTable.getRowCount(); ++rightRow)
-                {
-                    // Create combined row data for condition evaluation
-                    std::vector<std::string> combinedData;
-                    std::unordered_map<std::string, int> combinedColumnMap;
-
-                    // Add left and right data (similar to above)
-                    // Add left table data
-                    for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col)
-                    {
-                        const auto &column = m_leftTable.getColumns()[col];
-                        std::string colName = column.getName();
-                        combinedColumnMap[colName] = combinedData.size();
-
-                        // Convert value to string based on type
-                        switch (column.getType())
-                        {
-                        case DataType::INT:
-                            combinedData.push_back(std::to_string(m_leftTable.getIntValue(col, leftRow)));
-                            break;
-                        case DataType::FLOAT:
-                            combinedData.push_back(std::to_string(m_leftTable.getFloatValue(col, leftRow)));
-                            break;
-                        case DataType::DOUBLE:
-                            combinedData.push_back(std::to_string(m_leftTable.getDoubleValue(col, leftRow)));
-                            break;
-                        case DataType::VARCHAR:
-                        case DataType::STRING:
-                            combinedData.push_back(m_leftTable.getStringValue(col, leftRow));
-                            break;
-                        case DataType::BOOL:
-                            combinedData.push_back(m_leftTable.getBoolValue(col, leftRow) ? "true" : "false");
-                            break;
-                        }
-                    }
-
-                    // Add right table data
-                    for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col)
-                    {
-                        const auto &column = m_rightTable.getColumns()[col];
-                        std::string colName = column.getName();
-                        std::string mappedName = colName;
-
-                        // Handle column name conflicts
-                        if (conflictingNames.find(colName) != conflictingNames.end())
-                        {
-                            mappedName = "right_" + colName;
-                        }
-
-                        combinedColumnMap[mappedName] = combinedData.size();
-
-                        // Convert value to string based on type
-                        switch (column.getType())
-                        {
-                        case DataType::INT:
-                            combinedData.push_back(std::to_string(m_rightTable.getIntValue(col, rightRow)));
-                            break;
-                        case DataType::FLOAT:
-                            combinedData.push_back(std::to_string(m_rightTable.getFloatValue(col, rightRow)));
-                            break;
-                            case DataType::DOUBLE:
-                                combinedData.push_back(std::to_string(m_rightTable.getDoubleValue(col, rightRow)));
-                                break;
-                            case DataType::VARCHAR:
-                            case DataType::STRING:
-                                combinedData.push_back(m_rightTable.getStringValue(col, rightRow));
-                                break;
-                            case DataType::BOOL:
-                                combinedData.push_back(m_rightTable.getBoolValue(col, rightRow) ? "true" : "false");
-                                break;
-                            }
-                        }
-    
-                        // If the condition is true, mark the right row as matched
-                        try
-                        {
-                            // Need to provide the column types as the third parameter
-                            std::vector<DataType> combinedColTypes;
-                            // Add types from left table
-                            for (size_t i = 0; i < m_leftTable.getColumnCount(); ++i)
-                            {
-                                combinedColTypes.push_back(m_leftTable.getColumns()[i].getType());
-                            }
-                            // Add types from right table
-                            for (size_t i = 0; i < m_rightTable.getColumnCount(); ++i)
-                            {
-                                combinedColTypes.push_back(m_rightTable.getColumns()[i].getType());
-                            }
-    
-                            if (m_condition.evaluate(combinedColTypes, combinedData, combinedColumnMap))
-                            {
-                                rightRowMatched[rightRow] = true;
-                            }
-                        }
-                        catch (const std::exception &)
-                        {
-                            // Ignore evaluation errors for matching
-                        }
-                    }
-                }
-
-                // Add right rows that weren't matched
-                for (size_t rightRow = 0; rightRow < m_rightTable.getRowCount(); ++rightRow)
-                {
-                    if (!rightRowMatched[rightRow])
-                    {
-                        size_t resultCol = 0;
-
-                        // Add NULL values for left table
-                        for (size_t col = 0; col < m_leftTable.getColumnCount(); ++col, ++resultCol)
-                        {
-                            const auto &column = m_leftTable.getColumns()[col];
-                            switch (column.getType())
-                            {
-                            case DataType::INT:
-                                resultTable.appendIntValue(resultCol, 0); // NULL for int
-                                break;
-                            case DataType::FLOAT:
-                                resultTable.appendFloatValue(resultCol, 0.0f); // NULL for float
-                                break;
-                            case DataType::DOUBLE:
-                                resultTable.appendDoubleValue(resultCol, 0.0); // NULL for double
-                                break;
-                            case DataType::VARCHAR:
-                            case DataType::STRING:
-                                resultTable.appendStringValue(resultCol, "NULL"); // NULL for string
-                                break;
-                            case DataType::BOOL:
-                                resultTable.appendBoolValue(resultCol, false); // NULL for bool
-                                break;
-                            }
-                        }
-
-                        // Add values from right table
-                        for (size_t col = 0; col < m_rightTable.getColumnCount(); ++col, ++resultCol)
-                        {
-                            const auto &column = m_rightTable.getColumns()[col];
-                            switch (column.getType())
-                            {
-                            case DataType::INT:
-                                resultTable.appendIntValue(resultCol, m_rightTable.getIntValue(col, rightRow));
-                                break;
-                            case DataType::FLOAT:
-                                resultTable.appendFloatValue(resultCol, m_rightTable.getFloatValue(col, rightRow));
-                                break;
-                            case DataType::DOUBLE:
-                                resultTable.appendDoubleValue(resultCol, m_rightTable.getDoubleValue(col, rightRow));
-                                break;
-                            case DataType::VARCHAR:
-                            case DataType::STRING:
-                                resultTable.appendStringValue(resultCol, m_rightTable.getStringValue(col, rightRow));
-                                break;
-                            case DataType::BOOL:
-                                resultTable.appendBoolValue(resultCol, m_rightTable.getBoolValue(col, rightRow));
-                                break;
-                            }
-                        }
-
-                        resultTable.finalizeRow();
-                    }
-                }
-            }
-
-            return resultTable;
-        }
-
-    } // namespace GPUDBMS
+} // namespace GPUDBMS

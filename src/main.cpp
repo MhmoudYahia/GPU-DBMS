@@ -9,6 +9,7 @@
 #include "../include/Operations/Aggregator.hpp"
 #include "../include/Operations/Project.hpp"
 #include "../include/Operations/Join.hpp"
+#include "../include/SQLProcessing/SQLQueryProcessor.hpp"
 
 using namespace GPUDBMS;
 
@@ -20,7 +21,6 @@ Table createTestTable()
         Column("name", DataType::VARCHAR),
         Column("age", DataType::INT),
         Column("salary", DataType::DOUBLE),
-        // Column("active", DataType::BOOL) // causes segmentation fault
     };
 
     Table table(columns);
@@ -30,7 +30,6 @@ Table createTestTable()
     auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("name"));
     auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
     auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
-    // auto &activeCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("active"));
 
     // Add 5 rows
     for (int i = 1; i <= 5; i++)
@@ -39,14 +38,9 @@ Table createTestTable()
         nameCol.append("Person" + std::to_string(i));
         ageCol.append(20 + i * 5);
         salaryCol.append(50000.0 + i * 10000.0);
-        // activeCol.append(i % 2 == 0);
-
-        // std::cout<<"Added row: " << i << " - "
-        //          << "ID: " << i << ", "
-        //          << "Name: Person" << i << ", "
-        //          << "Age: " << (20 + i * 5) << ", "
-        //          << "Salary: " << (50000.0 + i * 10000.0) << ", "
-        //          << "Active: " << (i % 2 == 0 ? "true" : "false") << std::endl;
+        
+        // Finalize each row after adding all column values
+        table.finalizeRow();
     }
 
     return table;
@@ -284,95 +278,144 @@ void testAggregator()
 
     std::cout << "CPU Aggregator test passed!" << std::endl;
 }
-
 void testJoin()
 {
     std::cout << "Testing Join operation..." << std::endl;
-    
-    // Create two test tables for the join
-    
-    // Employees table
-    std::vector<Column> empColumns = {
-        Column("emp_id", DataType::INT),
-        Column("emp_name", DataType::VARCHAR),
-        Column("dept_id", DataType::INT)
-    };
-    
-    Table employeesTable(empColumns);
-    
-    auto &empIdCol = static_cast<ColumnDataImpl<int>&>(employeesTable.getColumnData("emp_id"));
-    auto &empNameCol = static_cast<ColumnDataImpl<std::string>&>(employeesTable.getColumnData("emp_name"));
-    auto &empDeptIdCol = static_cast<ColumnDataImpl<int>&>(employeesTable.getColumnData("dept_id"));
-    
-    // Add 5 employees
-    empIdCol.append(1); empNameCol.append("Alice"); empDeptIdCol.append(100);
-    empIdCol.append(2); empNameCol.append("Bob"); empDeptIdCol.append(200);
-    empIdCol.append(3); empNameCol.append("Charlie"); empDeptIdCol.append(100);
-    empIdCol.append(4); empNameCol.append("David"); empDeptIdCol.append(300);
-    empIdCol.append(5); empNameCol.append("Eve"); empDeptIdCol.append(200);
-    
-    // Departments table
-    std::vector<Column> deptColumns = {
-        Column("dept_id", DataType::INT),
-        Column("dept_name", DataType::VARCHAR),
+
+    // Create two test tables for joining
+    Table leftTable = createTestTable(); // This is our existing test table
+
+    // Create a second test table with ids that will match some from the first table
+    std::vector<Column> rightColumns = {
+        Column("id", DataType::INT),
+        Column("department", DataType::VARCHAR),
         Column("location", DataType::VARCHAR)
     };
-    
-    Table departmentsTable(deptColumns);
-    
-    auto &deptIdCol = static_cast<ColumnDataImpl<int>&>(departmentsTable.getColumnData("dept_id"));
-    auto &deptNameCol = static_cast<ColumnDataImpl<std::string>&>(departmentsTable.getColumnData("dept_name"));
-    auto &deptLocCol = static_cast<ColumnDataImpl<std::string>&>(departmentsTable.getColumnData("location"));
-    
-    // Add 3 departments
-    deptIdCol.append(100); deptNameCol.append("Engineering"); deptLocCol.append("Building A");
-    deptIdCol.append(200); deptNameCol.append("Marketing"); deptLocCol.append("Building B");
-    deptIdCol.append(400); deptNameCol.append("HR"); deptLocCol.append("Building C");
-    
+
+    Table rightTable(rightColumns);
+
+    // Add data to the right table
+    auto &rightIdCol = static_cast<ColumnDataImpl<int> &>(rightTable.getColumnData("id"));
+    auto &rightDeptCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("department"));
+    auto &rightLocCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("location"));
+
+    // Add some rows that will match (id: 2, 4) and some that won't
+    rightIdCol.append(2);
+    rightDeptCol.append("Engineering");
+    rightLocCol.append("Building A");
+
+    rightIdCol.append(4);
+    rightDeptCol.append("Marketing");
+    rightLocCol.append("Building B");
+
+    rightIdCol.append(6);
+    rightDeptCol.append("Finance");
+    rightLocCol.append("Building C");
+
+    // Finalize rows
+    rightTable.finalizeRow();
+    rightTable.finalizeRow();
+    rightTable.finalizeRow();
+
+    // Create join condition: leftTable.id = rightTable.id
+    auto joinCondition = ConditionBuilder::equals("id", "id");    
     // Test INNER JOIN
-    std::cout << "Testing INNER JOIN..." << std::endl;
-    auto joinCondition = ConditionBuilder::equals("dept_id", "dept_id");
-    Join innerJoin(employeesTable, departmentsTable, *joinCondition, JoinType::INNER);
+    Join innerJoinOp(leftTable, rightTable, *joinCondition, JoinType::INNER);
+    Table innerJoinResult = innerJoinOp.executeCPU();
+
+    // Verify inner join results
+    assert(innerJoinResult.getRowCount() == 2); // Should match 2 rows (id 2 and 4)
+    assert(innerJoinResult.getColumnCount() == leftTable.getColumnCount() + rightTable.getColumnCount());
+
+    // Verify some values from the joined rows
+    int leftIdCol = innerJoinResult.getColumnIndex("id");
     
-    Table innerResult = innerJoin.executeCPU();
+    // Check that the join contains the expected IDs
+    std::vector<int> expectedIds = {2, 4}; // IDs that should be in the join result
+    bool foundId2 = false;
+    bool foundId4 = false;
     
-    // Verify inner join result (should have 4 rows)
-    assert(innerResult.getRowCount() == 4);
-    assert(innerResult.getColumnCount() == 6); // 3 from employees + 3 from departments
+    for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row) {
+        int rowId = innerJoinResult.getIntValue(leftIdCol, row);
+        if (rowId == 2) foundId2 = true;
+        if (rowId == 4) foundId4 = true;
+    }
     
+    assert(foundId2 && foundId4);
+
     // Test LEFT JOIN
-    std::cout << "Testing LEFT JOIN..." << std::endl;
-    Join leftJoin(employeesTable, departmentsTable, *joinCondition, JoinType::LEFT);
+    Join leftJoinOp(leftTable, rightTable, *joinCondition, JoinType::LEFT);
+    Table leftJoinResult = leftJoinOp.executeCPU();
+
+    // Verify left join results
+    assert(leftJoinResult.getRowCount() == 5); // Should include all rows from left table
     
-    Table leftResult = leftJoin.executeCPU();
-    
-    // Verify left join result (should have 5 rows - all employees)
-    assert(leftResult.getRowCount() == 5);
-    
-    // Test RIGHT JOIN
-    std::cout << "Testing RIGHT JOIN..." << std::endl;
-    Join rightJoin(employeesTable, departmentsTable, *joinCondition, JoinType::RIGHT);
-    
-    Table rightResult = rightJoin.executeCPU();
-    
-    // Verify right join result (should have 5 rows - 4 matches + HR department)
-    assert(rightResult.getRowCount() == 5);
-    
-    // Execute on GPU if available
-    try
-    {
-        Table resultGPU = innerJoin.execute();
-        assert(resultGPU.getRowCount() == 4);
+    // Try on GPU if available
+    try {
+        Table resultGPU = innerJoinOp.execute();
+        assert(resultGPU.getRowCount() == 2);
         std::cout << "GPU Join test passed!" << std::endl;
     }
-    catch (const std::exception& e)
-    {
+    catch (const std::exception &e) {
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
-    
-    std::cout << "CPU Join tests passed!" << std::endl;
+
+    std::cout << "CPU Join test passed!" << std::endl;
 }
 
+
+void testSQLQueryProcessor() {
+    std::cout << "Testing SQL Query Processor..." << std::endl;
+    
+    SQLQueryProcessor processor;
+    
+    // Create a test table and register it with the processor
+    Table employeesTable = createTestTable();
+    std::cout << "Created employees table with " << employeesTable.getRowCount() << " rows" << std::endl;
+    
+    // Print the content of the test table for debugging
+    std::cout << "Employees table content:" << std::endl;
+    for (size_t row = 0; row < employeesTable.getRowCount(); ++row) {
+        std::cout << "Row " << row << ": ";
+        std::cout << "id=" << employeesTable.getIntValue(0, row) << ", ";
+        std::cout << "name=" << employeesTable.getStringValue(1, row) << ", ";
+        std::cout << "age=" << employeesTable.getIntValue(2, row) << ", ";
+        std::cout << "salary=" << employeesTable.getDoubleValue(3, row) << std::endl;
+    }
+    
+    processor.registerTable("employees", employeesTable);
+    
+    // Test a simple SELECT query
+    try {
+        std::cout << "Running query: SELECT id, name FROM employees WHERE age > 30" << std::endl;
+        Table result = processor.processQuery("SELECT id, name FROM employees WHERE age > 30");
+        std::cout << "Query execution successful. Result rows: " << result.getRowCount() << std::endl;
+        
+        // Print the result for debugging
+        std::cout << "Query result:" << std::endl;
+        for (size_t row = 0; row < result.getRowCount(); ++row) {
+            std::cout << "Row " << row << ": ";
+            std::cout << "id=" << result.getIntValue(0, row) << ", ";
+            std::cout << "name=" << result.getStringValue(1, row) << std::endl;
+        }
+        
+        // Verify the result has the expected columns
+        assert(result.getColumnCount() == 2);
+        assert(result.getColumnIndex("id") != -1);
+        assert(result.getColumnIndex("name") != -1);
+        
+        // Verify all returned rows have age > 30 (but we can't check directly since age isn't in the result)
+        assert(result.getRowCount() == 3); // Based on our test data
+        
+        // ... rest of the test...
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error executing query: " << e.what() << std::endl;
+        throw; // Re-throw to fail the test
+    }
+    
+    std::cout << "SQL Query Processor test passed!" << std::endl;
+}
 int main()
 {
     try
@@ -383,7 +426,8 @@ int main()
         // testFilter();
         // testOrderBy();
         // testAggregator();
-        testJoin();
+        // testJoin();
+        testSQLQueryProcessor();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }

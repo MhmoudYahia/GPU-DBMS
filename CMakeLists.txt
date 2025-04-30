@@ -68,3 +68,20 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+
+# Find SQL Parser package
+find_path(SQLPARSER_INCLUDE_DIR hsql/SQLParser.h
+  HINTS /usr/local/include)
+find_library(SQLPARSER_LIBRARY sqlparser
+  HINTS /usr/local/lib)
+
+include_directories(${SQLPARSER_INCLUDE_DIR})
+
+# Add the new SQLProcessing sources
+set(SOURCES 
+    ${SOURCES}
+    src/SQLProcessing/SQLQueryProcessor.cpp)
+
+# Link against the SQL parser library
+target_link_libraries(sqlqueryprocessor ${SQLPARSER_LIBRARY})

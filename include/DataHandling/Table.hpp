@@ -248,7 +248,6 @@ namespace GPUDBMS
          * @return DataType The data type of the column
          */
         DataType getColumnType(size_t columnIndex) const;
-        
 
         /**
          * @brief Create a new table with the same schema but no data
@@ -318,6 +317,10 @@ namespace GPUDBMS
          */
         void appendFloatValue(size_t columnIndex, float value);
 
+        // Get the name of a column by index
+        std::string getColumnName(size_t index) const;
+       
+        DataType getColumnType(const std::string& columnName) const;
         /**
          * @brief Append a string value to a column
          *
