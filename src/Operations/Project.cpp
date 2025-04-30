@@ -47,8 +47,40 @@ namespace GPUDBMS
         // Copy data from input table to result table
         const size_t rowCount = m_inputTable.getRowCount();
 
-        // In a real implementation, we would copy the data column by column
-        // while respecting the type of each column
+        // For each row in the input table
+        for (size_t row = 0; row < rowCount; ++row)
+        {
+            // For each column in the projection
+            for (size_t resultCol = 0; resultCol < m_columnIndices.size(); ++resultCol)
+            {
+                int sourceCol = m_columnIndices[resultCol];
+                const auto &column = m_inputTable.getColumns()[sourceCol];
+
+                // Copy the value based on type
+                switch (column.getType())
+                {
+                case DataType::INT:
+                    resultTable.appendIntValue(resultCol, m_inputTable.getIntValue(sourceCol, row));
+                    break;
+                case DataType::FLOAT:
+                    resultTable.appendFloatValue(resultCol, m_inputTable.getFloatValue(sourceCol, row));
+                    break;
+                case DataType::DOUBLE:
+                    resultTable.appendDoubleValue(resultCol, m_inputTable.getDoubleValue(sourceCol, row));
+                    break;
+                case DataType::VARCHAR:
+                case DataType::STRING:
+                    resultTable.appendStringValue(resultCol, m_inputTable.getStringValue(sourceCol, row));
+                    break;
+                case DataType::BOOL:
+                    resultTable.appendBoolValue(resultCol, m_inputTable.getBoolValue(sourceCol, row));
+                    break;
+                }
+            }
+
+            // Finalize the row after copying all column values
+            resultTable.finalizeRow();
+        }
 
         return resultTable;
     }
