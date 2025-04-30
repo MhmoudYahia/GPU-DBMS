@@ -8,6 +8,8 @@
 #include "../../include/Operations/Select.hpp"
 #include "../../include/Operations/Project.hpp"
 #include "../../include/Operations/Join.hpp"
+#include "../../include/Operations/OrderBy.hpp"
+#include "../../include/Operations/Aggregator.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -20,37 +22,41 @@ namespace GPUDBMS
     }
 
     // Add tables to the processor
-    void SQLQueryProcessor::registerTable(const std::string& name, const Table& table) {
+    void SQLQueryProcessor::registerTable(const std::string &name, const Table &table)
+    {
         tables[name] = table;
     }
 
     // Create table from schema definition
-    Table SQLQueryProcessor::createTableFromSchema(const hsql::CreateStatement* stmt) {
+    Table SQLQueryProcessor::createTableFromSchema(const hsql::CreateStatement *stmt)
+    {
         std::vector<Column> columns;
-        
+
         // Process column definitions
-        for (hsql::ColumnDefinition* col : *stmt->columns) {
+        for (hsql::ColumnDefinition *col : *stmt->columns)
+        {
             DataType dataType;
-            
+
             // Map SQL types to your DataType enum
-            switch (col->type.data_type) {
-                case hsql::DataType::INT:
-                    dataType = DataType::INT;
-                    break;
-                case hsql::DataType::DOUBLE:
-                    dataType = DataType::DOUBLE;
-                    break;
-                case hsql::DataType::TEXT:
-                case hsql::DataType::VARCHAR:
-                    dataType = DataType::VARCHAR;
-                    break;
-                default:
-                    throw std::runtime_error("Unsupported data type for column: " + std::string(col->name));
+            switch (col->type.data_type)
+            {
+            case hsql::DataType::INT:
+                dataType = DataType::INT;
+                break;
+            case hsql::DataType::DOUBLE:
+                dataType = DataType::DOUBLE;
+                break;
+            case hsql::DataType::TEXT:
+            case hsql::DataType::VARCHAR:
+                dataType = DataType::VARCHAR;
+                break;
+            default:
+                throw std::runtime_error("Unsupported data type for column: " + std::string(col->name));
             }
-            
+
             columns.push_back(Column(col->name, dataType));
         }
-        
+
         // Create and return the table
         return Table(columns);
     }
@@ -94,101 +100,126 @@ namespace GPUDBMS
     }
 
     // Implementation for CREATE TABLE
-    Table SQLQueryProcessor::executeCreateStatement(const hsql::CreateStatement* stmt) {
-        if (stmt->type != hsql::kCreateTable) {
+    Table SQLQueryProcessor::executeCreateStatement(const hsql::CreateStatement *stmt)
+    {
+        if (stmt->type != hsql::kCreateTable)
+        {
             throw std::runtime_error("Only CREATE TABLE is supported");
         }
-        
+
         // Create table from schema
         Table newTable = createTableFromSchema(stmt);
-        
+
         // Register the table
         tables[stmt->tableName] = newTable;
-        
+
         // Return the empty table
         return newTable;
     }
-    
+
     // Implementation for INSERT INTO
-    Table SQLQueryProcessor::executeInsertStatement(const hsql::InsertStatement* stmt) {
+    Table SQLQueryProcessor::executeInsertStatement(const hsql::InsertStatement *stmt)
+    {
         // Get the target table
         auto it = tables.find(stmt->tableName);
-        if (it == tables.end()) {
+        if (it == tables.end())
+        {
             throw std::runtime_error("Table not found: " + std::string(stmt->tableName));
         }
-        
-        Table& table = it->second;
-        
+
+        Table &table = it->second;
+
         // Handle VALUES clause
-        if (stmt->type == hsql::kInsertValues) {
-            for (const hsql::Expr* valueList : *stmt->values) {
+        if (stmt->type == hsql::kInsertValues)
+        {
+            for (const hsql::Expr *valueList : *stmt->values)
+            {
                 // Get references to column data
                 std::vector<std::reference_wrapper<ColumnData>> columnData;
-                
+
                 // If columns are specified, use them; otherwise use all columns in order
                 std::vector<std::string> columnNames;
-                if (stmt->columns) {
-                    for (const char* colName : *stmt->columns) {
+                if (stmt->columns)
+                {
+                    for (const char *colName : *stmt->columns)
+                    {
                         columnNames.push_back(colName);
                     }
-                } else {
+                }
+                else
+                {
                     // Use all columns
-                    for (size_t i = 0; i < table.getColumnCount(); i++) {
+                    for (size_t i = 0; i < table.getColumnCount(); i++)
+                    {
                         columnNames.push_back(table.getColumnName(i));
                     }
                 }
-                
+
                 // Insert values into respective columns
-                for (size_t i = 0; i < columnNames.size(); i++) {
-                    const hsql::Expr* expr = valueList->exprList->at(i);
-                    const std::string& colName = columnNames[i];
-                    
+                for (size_t i = 0; i < columnNames.size(); i++)
+                {
+                    const hsql::Expr *expr = valueList->exprList->at(i);
+                    const std::string &colName = columnNames[i];
+
                     // Get column data type
                     auto colType = table.getColumnType(colName);
-                    
+
                     // Insert based on data type
-                    switch (colType) {
-                        case DataType::INT: {
-                            if (expr->type != hsql::kExprLiteralInt) {
-                                throw std::runtime_error("Type mismatch for column " + colName);
-                            }
-                            auto& col = static_cast<ColumnDataImpl<int>&>(table.getColumnData(colName));
-                            col.append(expr->ival);
-                            break;
+                    switch (colType)
+                    {
+                    case DataType::INT:
+                    {
+                        if (expr->type != hsql::kExprLiteralInt)
+                        {
+                            throw std::runtime_error("Type mismatch for column " + colName);
                         }
-                        case DataType::DOUBLE: {
-                            double value;
-                            if (expr->type == hsql::kExprLiteralFloat) {
-                                value = expr->fval;
-                            } else if (expr->type == hsql::kExprLiteralInt) {
-                                value = static_cast<double>(expr->ival);
-                            } else {
-                                throw std::runtime_error("Type mismatch for column " + colName);
-                            }
-                            auto& col = static_cast<ColumnDataImpl<double>&>(table.getColumnData(colName));
-                            col.append(value);
-                            break;
+                        auto &col = static_cast<ColumnDataImpl<int> &>(table.getColumnData(colName));
+                        col.append(expr->ival);
+                        break;
+                    }
+                    case DataType::DOUBLE:
+                    {
+                        double value;
+                        if (expr->type == hsql::kExprLiteralFloat)
+                        {
+                            value = expr->fval;
                         }
-                        case DataType::VARCHAR: {
-                            if (expr->type != hsql::kExprLiteralString) {
-                                throw std::runtime_error("Type mismatch for column " + colName);
-                            }
-                            auto& col = static_cast<ColumnDataImpl<std::string>&>(table.getColumnData(colName));
-                            col.append(expr->name);
-                            break;
+                        else if (expr->type == hsql::kExprLiteralInt)
+                        {
+                            value = static_cast<double>(expr->ival);
                         }
-                        default:
-                            throw std::runtime_error("Unsupported data type for column " + colName);
+                        else
+                        {
+                            throw std::runtime_error("Type mismatch for column " + colName);
+                        }
+                        auto &col = static_cast<ColumnDataImpl<double> &>(table.getColumnData(colName));
+                        col.append(value);
+                        break;
+                    }
+                    case DataType::VARCHAR:
+                    {
+                        if (expr->type != hsql::kExprLiteralString)
+                        {
+                            throw std::runtime_error("Type mismatch for column " + colName);
+                        }
+                        auto &col = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData(colName));
+                        col.append(expr->name);
+                        break;
+                    }
+                    default:
+                        throw std::runtime_error("Unsupported data type for column " + colName);
                     }
                 }
-                
+
                 // Finalize the row
                 table.finalizeRow();
             }
-        } else {
+        }
+        else
+        {
             throw std::runtime_error("Only INSERT INTO VALUES is supported");
         }
-        
+
         return table;
     }
 
@@ -202,152 +233,353 @@ namespace GPUDBMS
         return it->second;
     }
 
-    Table SQLQueryProcessor::executeSelectStatement(const hsql::SelectStatement* stmt) {
+    Table SQLQueryProcessor::executeSelectStatement(const hsql::SelectStatement *stmt)
+    {
         // Basic implementation to demonstrate integration
-        
+        Table resultTable;
+
         // Handle FROM clause (can be a table or a join)
-        if (!stmt->fromTable) {
+        if (!stmt->fromTable)
+        {
             throw std::runtime_error("FROM clause is required");
         }
-        
-        Table resultTable;
-        
+
         // Check if we're dealing with a table or a join
-        if (stmt->fromTable->type == hsql::kTableName) {
+        if (stmt->fromTable->type == hsql::kTableName)
+        {
             // Simple table reference
             resultTable = getTable(stmt->fromTable->name);
-        } 
-        else if (stmt->fromTable->type == hsql::kTableJoin) {
+        }
+        else if (stmt->fromTable->type == hsql::kTableJoin)
+        {
             // Handle JOIN
-            const hsql::JoinDefinition* join = stmt->fromTable->join;
-            
+            const hsql::JoinDefinition *join = stmt->fromTable->join;
+
             // Get the left and right tables
             Table leftTable = getTable(join->left->name);
             Table rightTable = getTable(join->right->name);
-            
+
             // Translate the join condition
             auto joinCondition = translateWhereCondition(join->condition);
-            
+
             // Determine join type
             JoinType joinType;
-            switch (join->type) {
-                case hsql::kJoinInner:
-                    joinType = JoinType::INNER;
-                    break;
-                case hsql::kJoinLeft:
-                    joinType = JoinType::LEFT;
-                    break;
-                case hsql::kJoinRight:
-                    joinType = JoinType::RIGHT;
-                    break;
-                default:
-                    throw std::runtime_error("Unsupported join type");
+            switch (join->type)
+            {
+            case hsql::kJoinInner:
+                joinType = JoinType::INNER;
+                break;
+            case hsql::kJoinLeft:
+                joinType = JoinType::LEFT;
+                break;
+            case hsql::kJoinRight:
+                joinType = JoinType::RIGHT;
+                break;
+            default:
+                throw std::runtime_error("Unsupported join type");
             }
-            
+
             // Execute the join
             Join joinOp(leftTable, rightTable, *joinCondition, joinType);
             resultTable = joinOp.executeCPU();
-        } 
-        else {
+        }
+        else
+        {
             throw std::runtime_error("Unsupported FROM clause type");
         }
-        
+
         // Apply WHERE condition if it exists
-        if (stmt->whereClause) {
+        if (stmt->whereClause)
+        {
             auto condition = translateWhereCondition(stmt->whereClause);
             Select selectOp(resultTable, *condition);
             resultTable = selectOp.executeCPU();
         }
-        
-        // Handle SELECT columns (projection)
-        // Handle SELECT columns (projection)
-if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar) {
-    std::vector<std::string> projectColumns;
-    for (const hsql::Expr* expr : *stmt->selectList) {
-        if (expr->type == hsql::kExprColumnRef) {
-            projectColumns.push_back(expr->name);
+
+        // Check if this query uses aggregation
+        bool hasAggregation = false;
+        std::vector<Aggregation> aggregations;
+        std::optional<std::string> groupByColumn = std::nullopt;
+
+        // Check for GROUP BY clause
+        if (stmt->groupBy)
+        {
+            hasAggregation = true;
+            // Currently we only support a single GROUP BY column
+            if (stmt->groupBy->columns->size() > 0)
+            {
+                const hsql::Expr *groupExpr = stmt->groupBy->columns->at(0);
+                if (groupExpr->type == hsql::kExprColumnRef)
+                {
+                    groupByColumn = groupExpr->name;
+                }
+                else
+                {
+                    throw std::runtime_error("Only simple column references are supported in GROUP BY");
+                }
+            }
         }
-    }
-    
-    if (!projectColumns.empty()) {
-        Project projectOp(resultTable, projectColumns);
-        resultTable = projectOp.executeCPU(); // This line is missing assignment to resultTable
-    }
-}
-        
-        return resultTable;
-    }
-    
-    // You may also need to implement the translateWhereCondition method
-    std::unique_ptr<Condition> SQLQueryProcessor::translateWhereCondition(const hsql::Expr* expr) {
-        if (!expr) return nullptr;
-        
-        switch (expr->type) {
-            case hsql::kExprOperator: {
-                // Handle binary operators
-                if (expr->expr && expr->expr2) {
-                    // Get the column name (left side of condition)
-                    std::string columnName;
-                    if (expr->expr->type == hsql::kExprColumnRef) {
-                        // Handle table aliases if present (e.g., e.id)
-                        if (expr->expr->table) {
-                            columnName = std::string(expr->expr->table) + "." + expr->expr->name;
-                        } else {
-                            columnName = expr->expr->name;
-                        }
-                    } else {
-                        throw std::runtime_error("Left side of condition must be a column reference");
+
+        // Scan the select list for aggregation functions
+        for (const hsql::Expr *expr : *stmt->selectList)
+        {
+            if (expr->type == hsql::kExprFunctionRef)
+            {
+                hasAggregation = true;
+
+                // Get the function name and convert to upper case for case-insensitive comparison
+                std::string funcName = expr->name;
+                std::transform(funcName.begin(), funcName.end(), funcName.begin(), ::toupper);
+
+                // Determine the aggregate function type
+                AggregateFunction aggFunc;
+                if (funcName == "COUNT")
+                {
+                    aggFunc = AggregateFunction::COUNT;
+                }
+                else if (funcName == "SUM")
+                {
+                    aggFunc = AggregateFunction::SUM;
+                }
+                else if (funcName == "AVG")
+                {
+                    aggFunc = AggregateFunction::AVG;
+                }
+                else if (funcName == "MIN")
+                {
+                    aggFunc = AggregateFunction::MIN;
+                }
+                else if (funcName == "MAX")
+                {
+                    aggFunc = AggregateFunction::MAX;
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported aggregate function: " + funcName);
+                }
+
+                // Get column name from function argument
+                if (expr->exprList->size() != 1)
+                {
+                    throw std::runtime_error("Aggregate functions must have exactly one argument");
+                }
+
+                const hsql::Expr *argExpr = expr->exprList->at(0);
+                std::string columnName;
+
+                // Handle COUNT(*) specially
+                if (aggFunc == AggregateFunction::COUNT && argExpr->type == hsql::kExprStar)
+                {
+                    // For COUNT(*), we can use any column as they all have the same count
+                    columnName = resultTable.getColumnName(0);
+                }
+                else if (argExpr->type == hsql::kExprColumnRef)
+                {
+                    columnName = argExpr->name;
+                }
+                else
+                {
+                    throw std::runtime_error("Aggregate function argument must be a column reference");
+                }
+
+                // Get the alias if provided, otherwise use a default name
+                std::string alias;
+                if (expr->alias)
+                {
+                    alias = expr->alias;
+                }
+                else
+                {
+                    alias = funcName + "(" + columnName + ")";
+                }
+
+                aggregations.push_back(Aggregation(aggFunc, columnName, alias));
+            }
+            else if (expr->type == hsql::kExprColumnRef && hasAggregation)
+            {
+                // If we have aggregations, any column in SELECT must be in GROUP BY
+                if (!groupByColumn.has_value() || expr->name != groupByColumn.value())
+                {
+                    throw std::runtime_error(
+                        "Column " + std::string(expr->name) +
+                        " must appear in GROUP BY clause or be used in an aggregate function");
+                }
+            }
+        }
+
+        // Apply aggregation if needed
+        if (hasAggregation)
+        {
+            if (aggregations.empty())
+            {
+                throw std::runtime_error("GROUP BY used without aggregate functions");
+            }
+
+            Aggregator aggregator(resultTable, aggregations, groupByColumn);
+            resultTable = aggregator.executeCPU();
+        }
+        // If no aggregation, handle normal SELECT (projection)
+        else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
+        {
+            std::vector<std::string> projectColumns;
+            for (const hsql::Expr *expr : *stmt->selectList)
+            {
+                if (expr->type == hsql::kExprColumnRef)
+                {
+                    projectColumns.push_back(expr->name);
+                }
+            }
+
+            if (!projectColumns.empty())
+            {
+                Project projectOp(resultTable, projectColumns);
+                resultTable = projectOp.executeCPU();
+            }
+        }
+
+        // Apply ORDER BY if present
+        if (stmt->order)
+        {
+            if (stmt->order->size() == 1)
+            {
+                // Single column ordering
+                const hsql::OrderDescription *order = stmt->order->at(0);
+                if (order->expr->type == hsql::kExprColumnRef)
+                {
+                    SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
+                    OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
+                    resultTable = orderByOp.executeCPU();
+                }
+                else
+                {
+                    throw std::runtime_error("ORDER BY supports only column references");
+                }
+            }
+            else if (stmt->order->size() > 1)
+            {
+                // Multi-column ordering
+                std::vector<std::string> sortColumns;
+                std::vector<SortOrder> sortOrders;
+
+                for (const hsql::OrderDescription *order : *stmt->order)
+                {
+                    if (order->expr->type == hsql::kExprColumnRef)
+                    {
+                        sortColumns.push_back(order->expr->name);
+                        sortOrders.push_back(order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC);
                     }
-                    
-                    // Handle based on operator type
-                    switch (expr->opType) {
-                        case hsql::kOpEquals: {
-                            // Handle different types of right operands
-                            if (expr->expr2->type == hsql::kExprLiteralString) {
-                                return ConditionBuilder::equals(columnName, expr->expr2->name);
-                            } else if (expr->expr2->type == hsql::kExprLiteralInt) {
-                                return ConditionBuilder::equals(columnName, std::to_string(expr->expr2->ival));
-                            } else if (expr->expr2->type == hsql::kExprLiteralFloat) {
-                                return ConditionBuilder::equals(columnName, std::to_string(expr->expr2->fval));
-                            }
-                            break;
-                        }
-                        case hsql::kOpGreater: {
-                            if (expr->expr2->type == hsql::kExprLiteralInt) {
-                                return ConditionBuilder::greaterThan(columnName, std::to_string(expr->expr2->ival));
-                            } else if (expr->expr2->type == hsql::kExprLiteralFloat) {
-                                return ConditionBuilder::greaterThan(columnName, std::to_string(expr->expr2->fval));
-                            }
-                            break;
-                        }
-                        case hsql::kOpLess: {
-                            if (expr->expr2->type == hsql::kExprLiteralInt) {
-                                return ConditionBuilder::lessThan(columnName, std::to_string(expr->expr2->ival));
-                            } else if (expr->expr2->type == hsql::kExprLiteralFloat) {
-                                return ConditionBuilder::lessThan(columnName, std::to_string(expr->expr2->fval));
-                            }
-                            break;
-                        }
-                        case hsql::kOpAnd: {
-                            auto leftCond = translateWhereCondition(expr->expr);
-                            auto rightCond = translateWhereCondition(expr->expr2);
-                            return ConditionBuilder::And(std::move(leftCond), std::move(rightCond));
-                        }
-                        case hsql::kOpOr: {
-                            auto leftCond = translateWhereCondition(expr->expr);
-                            auto rightCond = translateWhereCondition(expr->expr2);
-                            return ConditionBuilder::Or(std::move(leftCond), std::move(rightCond));
-                        }
-                        default:
-                            throw std::runtime_error("Unsupported operator in WHERE clause");
+                    else
+                    {
+                        throw std::runtime_error("ORDER BY supports only column references");
                     }
                 }
-                break;
+
+                OrderBy orderByOp(resultTable, sortColumns, sortOrders);
+                resultTable = orderByOp.executeCPU();
             }
-            default:
-                break;
         }
-        
+
+        return resultTable;
+    }
+
+    // You may also need to implement the translateWhereCondition method
+    std::unique_ptr<Condition> SQLQueryProcessor::translateWhereCondition(const hsql::Expr *expr)
+    {
+        if (!expr)
+            return nullptr;
+
+        switch (expr->type)
+        {
+        case hsql::kExprOperator:
+        {
+            // Handle binary operators
+            if (expr->expr && expr->expr2)
+            {
+                // Get the column name (left side of condition)
+                std::string columnName;
+                if (expr->expr->type == hsql::kExprColumnRef)
+                {
+                    // Handle table aliases if present (e.g., e.id)
+                    if (expr->expr->table)
+                    {
+                        columnName = std::string(expr->expr->table) + "." + expr->expr->name;
+                    }
+                    else
+                    {
+                        columnName = expr->expr->name;
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("Left side of condition must be a column reference");
+                }
+
+                // Handle based on operator type
+                switch (expr->opType)
+                {
+                case hsql::kOpEquals:
+                {
+                    // Handle different types of right operands
+                    if (expr->expr2->type == hsql::kExprLiteralString)
+                    {
+                        return ConditionBuilder::equals(columnName, expr->expr2->name);
+                    }
+                    else if (expr->expr2->type == hsql::kExprLiteralInt)
+                    {
+                        return ConditionBuilder::equals(columnName, std::to_string(expr->expr2->ival));
+                    }
+                    else if (expr->expr2->type == hsql::kExprLiteralFloat)
+                    {
+                        return ConditionBuilder::equals(columnName, std::to_string(expr->expr2->fval));
+                    }
+                    break;
+                }
+                case hsql::kOpGreater:
+                {
+                    if (expr->expr2->type == hsql::kExprLiteralInt)
+                    {
+                        return ConditionBuilder::greaterThan(columnName, std::to_string(expr->expr2->ival));
+                    }
+                    else if (expr->expr2->type == hsql::kExprLiteralFloat)
+                    {
+                        return ConditionBuilder::greaterThan(columnName, std::to_string(expr->expr2->fval));
+                    }
+                    break;
+                }
+                case hsql::kOpLess:
+                {
+                    if (expr->expr2->type == hsql::kExprLiteralInt)
+                    {
+                        return ConditionBuilder::lessThan(columnName, std::to_string(expr->expr2->ival));
+                    }
+                    else if (expr->expr2->type == hsql::kExprLiteralFloat)
+                    {
+                        return ConditionBuilder::lessThan(columnName, std::to_string(expr->expr2->fval));
+                    }
+                    break;
+                }
+                case hsql::kOpAnd:
+                {
+                    auto leftCond = translateWhereCondition(expr->expr);
+                    auto rightCond = translateWhereCondition(expr->expr2);
+                    return ConditionBuilder::And(std::move(leftCond), std::move(rightCond));
+                }
+                case hsql::kOpOr:
+                {
+                    auto leftCond = translateWhereCondition(expr->expr);
+                    auto rightCond = translateWhereCondition(expr->expr2);
+                    return ConditionBuilder::Or(std::move(leftCond), std::move(rightCond));
+                }
+                default:
+                    throw std::runtime_error("Unsupported operator in WHERE clause");
+                }
+            }
+            break;
+        }
+        default:
+            break;
+        }
+
         throw std::runtime_error("Unsupported expression type in WHERE clause");
     }
 }

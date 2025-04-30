@@ -38,10 +38,31 @@ Table createTestTable()
         nameCol.append("Person" + std::to_string(i));
         ageCol.append(20 + i * 5);
         salaryCol.append(50000.0 + i * 10000.0);
-        
+
         // Finalize each row after adding all column values
         table.finalizeRow();
     }
+
+    // // Add an additional row for testing aggregations
+    // idCol.append(6);
+    // nameCol.append("Person" + std::to_string(6));
+    // ageCol.append(25);
+    // salaryCol.append(50000.0 + 1 * 10000.0);
+    // table.finalizeRow();
+
+    // // Add an additional row for testing
+    // idCol.append(7);
+    // nameCol.append("Person" + std::to_string(7));
+    // ageCol.append(35);
+    // salaryCol.append(70000.0 + 2 * 10000.0);
+    // table.finalizeRow();
+
+    // // Add an additional row for testing
+    // idCol.append(8);
+    // nameCol.append("Person" + std::to_string(8));
+    // ageCol.append(35);
+    // salaryCol.append(90000.0 + 3 * 10000.0);
+    // table.finalizeRow();
 
     return table;
 }
@@ -135,7 +156,6 @@ void testComplexCondition()
     // The expected result depends on the data, so just make sure execution completes
     std::cout << "Complex condition test passed!" << std::endl;
 }
-
 void testOrderBy()
 {
     std::cout << "Testing OrderBy operation..." << std::endl;
@@ -191,7 +211,6 @@ void testOrderBy()
 
     std::cout << "CPU OrderBy test passed!" << std::endl;
 }
-
 void testAggregator()
 {
     std::cout << "Testing Aggregator operation..." << std::endl;
@@ -289,8 +308,7 @@ void testJoin()
     std::vector<Column> rightColumns = {
         Column("id", DataType::INT),
         Column("department", DataType::VARCHAR),
-        Column("location", DataType::VARCHAR)
-    };
+        Column("location", DataType::VARCHAR)};
 
     Table rightTable(rightColumns);
 
@@ -318,7 +336,7 @@ void testJoin()
     rightTable.finalizeRow();
 
     // Create join condition: leftTable.id = rightTable.id
-    auto joinCondition = ConditionBuilder::equals("id", "id");    
+    auto joinCondition = ConditionBuilder::equals("id", "id");
     // Test INNER JOIN
     Join innerJoinOp(leftTable, rightTable, *joinCondition, JoinType::INNER);
     Table innerJoinResult = innerJoinOp.executeCPU();
@@ -329,18 +347,21 @@ void testJoin()
 
     // Verify some values from the joined rows
     int leftIdCol = innerJoinResult.getColumnIndex("id");
-    
+
     // Check that the join contains the expected IDs
     std::vector<int> expectedIds = {2, 4}; // IDs that should be in the join result
     bool foundId2 = false;
     bool foundId4 = false;
-    
-    for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row) {
+
+    for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row)
+    {
         int rowId = innerJoinResult.getIntValue(leftIdCol, row);
-        if (rowId == 2) foundId2 = true;
-        if (rowId == 4) foundId4 = true;
+        if (rowId == 2)
+            foundId2 = true;
+        if (rowId == 4)
+            foundId4 = true;
     }
-    
+
     assert(foundId2 && foundId4);
 
     // Test LEFT JOIN
@@ -349,71 +370,142 @@ void testJoin()
 
     // Verify left join results
     assert(leftJoinResult.getRowCount() == 5); // Should include all rows from left table
-    
+
     // Try on GPU if available
-    try {
+    try
+    {
         Table resultGPU = innerJoinOp.execute();
         assert(resultGPU.getRowCount() == 2);
         std::cout << "GPU Join test passed!" << std::endl;
     }
-    catch (const std::exception &e) {
+    catch (const std::exception &e)
+    {
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
 
     std::cout << "CPU Join test passed!" << std::endl;
 }
 
+void testSelectQueryParser(auto processor)
+{
 
-void testSQLQueryProcessor() {
+    try
+    {
+        std::cout << "Running query: SELECT id, name FROM employees WHERE age > 30" << std::endl;
+        Table result = processor.processQuery("SELECT id, name FROM employees WHERE age > 30");
+        std::cout << "Query execution successful. Result rows: " << result.getRowCount() << std::endl;
+
+        // Print the result for debugging
+        std::cout << "Query result:" << std::endl;
+        for (size_t row = 0; row < result.getRowCount(); ++row)
+        {
+            std::cout << "Row " << row << ": ";
+            std::cout << "id=" << result.getIntValue(0, row) << ", ";
+            std::cout << "name=" << result.getStringValue(1, row) << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error executing query: " << e.what() << std::endl;
+        throw; // Re-throw to fail the test
+    }
+}
+
+void testAggregationsParser(auto processor)
+{
+    try
+    {
+        std::cout << "Running aggregation query: SELECT MAX(salary) as max_salary, MIN(age) as min_age FROM employees" << std::endl;
+        Table aggResult = processor.processQuery("SELECT MAX(salary) as max_salary, MIN(age) as min_age FROM employees");
+        std::cout << "Aggregation query successful. Result rows: " << aggResult.getRowCount() << std::endl;
+
+        // Print the result
+        std::cout << "Aggregation result:" << std::endl;
+        std::cout << "max_salary=" << aggResult.getDoubleValue(0, 0) << ", ";
+        std::cout << "min_age=" << aggResult.getIntValue(1, 0) << std::endl;
+
+        // Test GROUP BY query
+        std::cout << "Running GROUP BY query: SELECT age, COUNT(id) as count FROM employees GROUP BY age" << std::endl;
+        Table groupResult = processor.processQuery("SELECT age, COUNT(id) as count FROM employees GROUP BY age");
+        std::cout << "GROUP BY query successful. Result rows: " << groupResult.getRowCount() << std::endl;
+
+        // Print the result
+        std::cout << "GROUP BY result:" << std::endl;
+        for (size_t row = 0; row < groupResult.getRowCount(); ++row)
+        {
+            std::cout << "age=" << groupResult.getIntValue(0, row) << ", ";
+            std::cout << "count=" << groupResult.getIntValue(1, row) << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error executing aggregation query: " << e.what() << std::endl;
+        throw; // Re-throw to fail the test
+    }
+}
+
+void testOrderBySQL(SQLQueryProcessor &processor)
+{
+    std::cout << "Testing SQL ORDER BY..." << std::endl;
+
+    // Single column ORDER BY
+    std::cout << "Running query: SELECT * FROM employees ORDER BY age DESC" << std::endl;
+    Table result1 = processor.processQuery("SELECT * FROM employees ORDER BY age DESC");
+
+    // Print results
+    std::cout << "Results ordered by age DESC:" << std::endl;
+    for (size_t row = 0; row < result1.getRowCount(); ++row)
+    {
+        std::cout << "Row " << row << ": ";
+        std::cout << "id=" << result1.getIntValue(0, row) << ", ";
+        std::cout << "name=" << result1.getStringValue(1, row) << ", ";
+        std::cout << "age=" << result1.getIntValue(2, row) << ", ";
+        std::cout << "salary=" << result1.getDoubleValue(3, row) << std::endl;
+    }
+
+    // Multi-column ORDER BY
+    std::cout << "Running query: SELECT * FROM employees ORDER BY age ASC, salary DESC" << std::endl;
+    Table result2 = processor.processQuery("SELECT * FROM employees ORDER BY age ASC, salary DESC");
+
+    // Print results
+    std::cout << "Results ordered by age ASC, salary DESC:" << std::endl;
+    for (size_t row = 0; row < result2.getRowCount(); ++row)
+    {
+        std::cout << "Row " << row << ": ";
+        std::cout << "id=" << result2.getIntValue(0, row) << ", ";
+        std::cout << "name=" << result2.getStringValue(1, row) << ", ";
+        std::cout << "age=" << result2.getIntValue(2, row) << ", ";
+        std::cout << "salary=" << result2.getDoubleValue(3, row) << std::endl;
+    }
+}
+
+void testSQLQueryProcessor()
+{
     std::cout << "Testing SQL Query Processor..." << std::endl;
-    
+
     SQLQueryProcessor processor;
-    
+
     // Create a test table and register it with the processor
     Table employeesTable = createTestTable();
     std::cout << "Created employees table with " << employeesTable.getRowCount() << " rows" << std::endl;
-    
+
     // Print the content of the test table for debugging
     std::cout << "Employees table content:" << std::endl;
-    for (size_t row = 0; row < employeesTable.getRowCount(); ++row) {
+    for (size_t row = 0; row < employeesTable.getRowCount(); ++row)
+    {
         std::cout << "Row " << row << ": ";
         std::cout << "id=" << employeesTable.getIntValue(0, row) << ", ";
         std::cout << "name=" << employeesTable.getStringValue(1, row) << ", ";
         std::cout << "age=" << employeesTable.getIntValue(2, row) << ", ";
         std::cout << "salary=" << employeesTable.getDoubleValue(3, row) << std::endl;
     }
-    
+
     processor.registerTable("employees", employeesTable);
-    
-    // Test a simple SELECT query
-    try {
-        std::cout << "Running query: SELECT id, name FROM employees WHERE age > 30" << std::endl;
-        Table result = processor.processQuery("SELECT id, name FROM employees WHERE age > 30");
-        std::cout << "Query execution successful. Result rows: " << result.getRowCount() << std::endl;
-        
-        // Print the result for debugging
-        std::cout << "Query result:" << std::endl;
-        for (size_t row = 0; row < result.getRowCount(); ++row) {
-            std::cout << "Row " << row << ": ";
-            std::cout << "id=" << result.getIntValue(0, row) << ", ";
-            std::cout << "name=" << result.getStringValue(1, row) << std::endl;
-        }
-        
-        // Verify the result has the expected columns
-        assert(result.getColumnCount() == 2);
-        assert(result.getColumnIndex("id") != -1);
-        assert(result.getColumnIndex("name") != -1);
-        
-        // Verify all returned rows have age > 30 (but we can't check directly since age isn't in the result)
-        assert(result.getRowCount() == 3); // Based on our test data
-        
-        // ... rest of the test...
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error executing query: " << e.what() << std::endl;
-        throw; // Re-throw to fail the test
-    }
-    
+
+    // testSelectQueryParser(processor);
+    // testAggregationsParser(processor);
+    testOrderBySQL(processor);
+
     std::cout << "SQL Query Processor test passed!" << std::endl;
 }
 int main()

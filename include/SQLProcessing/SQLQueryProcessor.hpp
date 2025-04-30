@@ -34,8 +34,8 @@ private:
     
     // Helper methods to handle different statement types
     Table executeSelectStatement(const hsql::SelectStatement* stmt);
-    Table executeCreateStatement(const hsql::CreateStatement* stmt);  // Add this declaration
-    Table executeInsertStatement(const hsql::InsertStatement* stmt);  // Add this declaration
+    Table executeCreateStatement(const hsql::CreateStatement* stmt); 
+    Table executeInsertStatement(const hsql::InsertStatement* stmt); 
     
     // Helper to create a table from schema definition
     Table createTableFromSchema(const hsql::CreateStatement* stmt);
