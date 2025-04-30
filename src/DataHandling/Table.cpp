@@ -409,4 +409,41 @@ namespace GPUDBMS
         return m_columns[index].getName();
     }
 
+    Table Table::getSlicedTable(const std::vector<int> &rowIndices) const
+    {
+        Table resultTable = createEmptyWithSameSchema();
+
+        const size_t colCount = m_columns.size();
+        std::vector<const GPUDBMS::ColumnData *> sourceColumns(colCount);
+        std::vector<GPUDBMS::ColumnData *> resultColumns(colCount);
+
+        for (size_t col = 0; col < colCount; ++col)
+        {
+            sourceColumns[col] = &getColumnData(col);
+            resultColumns[col] = &resultTable.getColumnData(col);
+        }
+
+        for (const auto &rowIndex : rowIndices)
+        {
+            for (size_t col = 0; col < colCount; ++col)
+            {
+                resultColumns[col]->appendFromRow(*sourceColumns[col], rowIndex);
+            }
+        }
+
+        resultTable.finalizeRow();
+        return resultTable;
+    }
+
+    template <typename T>
+    void ColumnDataImpl<T>::appendFromRow(const ColumnData &source, int rowIndex)
+    {
+        const auto &typedSource = static_cast<const ColumnDataImpl<T> &>(source);
+        if (rowIndex < 0 || rowIndex >= typedSource.size())
+        {
+            throw std::out_of_range("Row index out of range");
+        }
+        append(typedSource.getValue(rowIndex));
+    }
+
 } // namespace GPUDBMS

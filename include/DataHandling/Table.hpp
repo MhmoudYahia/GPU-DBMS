@@ -6,6 +6,8 @@
 #include <memory>
 #include <unordered_map>
 #include <stdexcept>
+#include <iostream>
+#include <chrono>
 
 namespace GPUDBMS
 {
@@ -70,6 +72,7 @@ namespace GPUDBMS
         virtual DataType getType() const = 0;
         virtual std::unique_ptr<ColumnData> clone() const = 0;
         virtual std::unique_ptr<ColumnData> createEmpty() const = 0;
+        virtual void appendFromRow(const ColumnData& source, int rowIndex) = 0;
     };
 
     /**
@@ -125,6 +128,8 @@ namespace GPUDBMS
         {
             return std::make_unique<ColumnDataImpl<T>>();
         }
+
+        void appendFromRow(const ColumnData &source, int rowIndex) override;
 
     private:
         std::vector<T> m_data;
@@ -319,8 +324,8 @@ namespace GPUDBMS
 
         // Get the name of a column by index
         std::string getColumnName(size_t index) const;
-       
-        DataType getColumnType(const std::string& columnName) const;
+
+        DataType getColumnType(const std::string &columnName) const;
         /**
          * @brief Append a string value to a column
          *
@@ -348,6 +353,14 @@ namespace GPUDBMS
          * @brief Finalize a row after appending values to all columns
          */
         void finalizeRow();
+
+        /**
+         * @brief Create a new table containing only the specified rows
+         *
+         * @param rowIndices The indices of rows to include in the new table
+         * @return Table A new table with the selected rows
+         */
+        Table getSlicedTable(const std::vector<int> &rowIndices) const;
 
     private:
         std::vector<Column> m_columns;

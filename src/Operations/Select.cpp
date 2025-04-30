@@ -40,6 +40,8 @@ namespace GPUDBMS
 
         std::vector<DataType> colsType = m_inputTable.getColumnsType();
 
+        std::vector<int> includedRows;
+
         // For each row in the input table
         for (size_t row = 0; row < rowCount; ++row)
         {
@@ -75,49 +77,16 @@ namespace GPUDBMS
                 }
             }
 
+
             // Evaluate condition on this row
             if (m_condition.evaluate(colsType, rowData, columnNameToIndex))
             {
-                // Add the row to result table if condition is satisfied
-                for (size_t col = 0; col < colCount; ++col)
-                {
-                    const auto &column = m_inputTable.getColumns()[col];
-                    switch (column.getType())
-                    {
-                    case DataType::INT:
-                        resultTable.appendIntValue(col, m_inputTable.getIntValue(col, row));
-                        break;
-                    case DataType::FLOAT:
-                        resultTable.appendFloatValue(col, m_inputTable.getFloatValue(col, row));
-                        break;
-                    case DataType::STRING:
-                        resultTable.appendStringValue(col, m_inputTable.getStringValue(col, row));
-                        break;
-                    case DataType::VARCHAR:
-                        resultTable.appendStringValue(col, m_inputTable.getStringValue(col, row));
-                        break;
-                    case DataType::DOUBLE:
-                        resultTable.appendDoubleValue(col, m_inputTable.getDoubleValue(col, row));
-                        break;
-                    case DataType::BOOL:
-                        resultTable.appendBoolValue(col, m_inputTable.getBoolValue(col, row));
-                        break;
-                    default:
-                        // Handle default case or ignore
-                        break;
-                    }
-                }
+                includedRows.push_back(row);
 
-                // std::cout << resultTable.getColumnData(0).size() << std::endl;
-                // std::cout << resultTable.getColumnData(1).size() << std::endl;
-                // std::cout << resultTable.getColumnData(2).size() << std::endl;
-                // std::cout << resultTable.getColumnData(3).size() << std::endl;
-                // std::cout << resultTable.getColumnData(4).size() << std::endl;
-                resultTable.finalizeRow();
             }
         }
 
-        return resultTable;
+        return m_inputTable.getSlicedTable(includedRows);
     }
 
     Table Select::executeGPU()

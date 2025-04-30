@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <memory>
+#include <chrono>
 #include "../include/Operations/Select.hpp"
 #include "../include/DataHandling/Table.hpp"
 #include "../include/DataHandling/Condition.hpp"
@@ -34,11 +35,11 @@ Table createTestTable()
     auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
 
     // Add 5 rows
-    for (int i = 1; i <= 5; i++)
+    for (int i = 1; i <= 10000000; i++)
     {
         idCol.append(i);
         nameCol.append("Person" + std::to_string(i));
-        ageCol.append(20 + i * 5);
+        ageCol.append(i);
         salaryCol.append(50000.0 + i * 10000.0);
 
         // Finalize each row after adding all column values
@@ -77,18 +78,29 @@ void testSelect()
     Table testTable = createTestTable();
 
     // Test simple selection (age > 30)
-    auto condition = ConditionBuilder::greaterThan("age", "30");
+    auto condition = ConditionBuilder::lessThan("age", "5000000");
     Select selectOp(testTable, *condition);
 
     // Execute on CPU
+    auto start = std::chrono::high_resolution_clock::now();
     Table resultCPU = selectOp.execute();
-    assert(resultCPU.getRowCount() == 3);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+
+    assert(resultCPU.getRowCount() == 4999999);
+    std::cout << "CPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
 
     // Execute on GPU if available
     try
     {
+        auto start = std::chrono::high_resolution_clock::now();
         Table resultGPU = selectOp.execute(USE_GPU);
-        assert(resultGPU.getRowCount() == 3);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+
+        std::cout << "GPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
+
+        assert(resultGPU.getRowCount() == 4999999);
         std::cout << "GPU Select test passed!" << std::endl;
     }
     catch (const std::exception &e)

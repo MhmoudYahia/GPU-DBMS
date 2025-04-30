@@ -179,7 +179,6 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     else
         return resultTable; // Invalid operator
 
-
     // Allocate memory for output flags
     bool *h_outputFlags;
     cudaMallocHost((void **)&h_outputFlags, rowCount * sizeof(bool));
@@ -244,25 +243,51 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     char *d_stringBuffer = nullptr;
     int *d_stringOffsets = nullptr;
     bool *d_outputFlags = nullptr;
+
+    switch (columnType)
+    {
+    case GPUDBMS::DataType::INT:
+        cudaMalloc((void **)&d_intCol, rowCount * sizeof(int));
+        cudaMemcpy(d_intCol, h_intCol, rowCount * sizeof(int), cudaMemcpyHostToDevice);
+        break;
+    case GPUDBMS::DataType::FLOAT:
+        cudaMalloc((void **)&d_floatCol, rowCount * sizeof(float));
+        cudaMemcpy(d_floatCol, h_floatCol, rowCount * sizeof(float), cudaMemcpyHostToDevice);
+        break;
+    case GPUDBMS::DataType::BOOL:
+        cudaMalloc((void **)&d_boolCol, rowCount * sizeof(bool));
+        cudaMemcpy(d_boolCol, h_boolCol, rowCount * sizeof(bool), cudaMemcpyHostToDevice);
+        break;
+    case GPUDBMS::DataType::DOUBLE:
+        cudaMalloc((void **)&d_doubleCol, rowCount * sizeof(double));
+        cudaMemcpy(d_doubleCol, h_doubleCol, rowCount * sizeof(double), cudaMemcpyHostToDevice);
+        break;
+    case GPUDBMS::DataType::STRING:
+    case GPUDBMS::DataType::VARCHAR:
+        cudaMalloc((void **)&d_stringBuffer, rowCount * 256 * sizeof(char));
+        cudaMemcpy(d_stringBuffer, h_stringBuffer, rowCount * 256 * sizeof(char), cudaMemcpyHostToDevice);
+        cudaMalloc((void **)&d_stringOffsets, rowCount * sizeof(int));
+        cudaMemcpy(d_stringOffsets, h_stringOffsets, rowCount * sizeof(int), cudaMemcpyHostToDevice);
+        break;
+
+    default:
+        break;
+    }
+
     cudaMalloc((void **)&d_outputFlags, rowCount * sizeof(bool));
-    cudaMalloc((void **)&d_intCol, rowCount * sizeof(int));
-    cudaMalloc((void **)&d_floatCol, rowCount * sizeof(float));
-    cudaMalloc((void **)&d_boolCol, rowCount * sizeof(bool));
-    cudaMalloc((void **)&d_doubleCol, rowCount * sizeof(double));
-    cudaMalloc((void **)&d_stringBuffer, rowCount * 256 * sizeof(char));
-    cudaMalloc((void **)&d_stringOffsets, rowCount * sizeof(int));
-    cudaMemcpy(d_intCol, h_intCol, rowCount * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_floatCol, h_floatCol, rowCount * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_boolCol, h_boolCol, rowCount * sizeof(bool), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_doubleCol, h_doubleCol, rowCount * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_stringBuffer, h_stringBuffer, rowCount * 256 * sizeof(char), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_stringOffsets, h_stringOffsets, rowCount * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_outputFlags, h_outputFlags, rowCount * sizeof(bool), cudaMemcpyHostToDevice);
 
     // Launch the kernel
-    int blockSize = 256;
+    int blockSize = 1024;
     int numBlocks = (rowCount + blockSize - 1) / blockSize;
 
+    std::cout << "Launching kernel with " << numBlocks << " blocks and " << blockSize << " threads per block." << std::endl;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
     selectKernel<<<numBlocks, blockSize>>>(
         op,
         rowCount,
@@ -274,12 +299,21 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         d_stringOffsets,
         columnType,
         d_outputFlags,
-        std::stoi(value), // Pass parsed value as int
-        std::stof(value), // Pass parsed value as float
-        std::stod(value), // Pass parsed value as double
+        std::stoi(value),                  // Pass parsed value as int
+        std::stof(value),                  // Pass parsed value as float
+        std::stod(value),                  // Pass parsed value as double
         (value == "true" || value == "1"), // Pass parsed value as bool
-        value.c_str() // Pass parsed value as string
-        ); 
+        value.c_str()                      // Pass parsed value as string
+    );
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     cudaDeviceSynchronize();
     // Copy the output flags back to host
     cudaMemcpy(h_outputFlags, d_outputFlags, rowCount * sizeof(bool), cudaMemcpyDeviceToHost);
@@ -292,43 +326,24 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     cudaFree(d_stringOffsets);
     cudaFree(d_outputFlags);
 
+    const auto &columns = m_inputTable.getColumns();
+
+    std::vector<GPUDBMS::DataType> columnTypes(colCount);
+    for (size_t col = 0; col < colCount; ++col)
+    {
+        columnTypes[col] = columns[col].getType();
+    }
+
+    std::vector<int> includedRows;
     // Fill the result table with rows that match the condition
     for (size_t row = 0; row < rowCount; ++row)
     {
         // std::cout << "Row " << row << ": " << h_outputFlags[row] << std::endl;
         if (h_outputFlags[row])
         {
-
-            // std::cout << "Row " << row << " matches the condition." << std::endl;
-            for (size_t col = 0; col < colCount; ++col)
-            {
-                const auto &column = m_inputTable.getColumns()[col];
-                switch (column.getType())
-                {
-                case GPUDBMS::DataType::INT:
-                    resultTable.appendIntValue(col, m_inputTable.getIntValue(col, row));
-                    break;
-                case GPUDBMS::DataType::FLOAT:
-                    resultTable.appendFloatValue(col, m_inputTable.getFloatValue(col, row));
-                    break;
-                case GPUDBMS::DataType::STRING:
-                case GPUDBMS::DataType::VARCHAR:
-                    resultTable.appendStringValue(col, m_inputTable.getStringValue(col, row));
-                    break;
-                case GPUDBMS::DataType::DOUBLE:
-                    resultTable.appendDoubleValue(col, m_inputTable.getDoubleValue(col, row));
-                    break;
-                case GPUDBMS::DataType::BOOL:
-                    resultTable.appendBoolValue(col, m_inputTable.getBoolValue(col, row));
-                    break;
-                default:
-                    // Handle unsupported types
-                    break;
-                }
-            }
-            resultTable.finalizeRow();
+            includedRows.push_back(static_cast<int>(row));
         }
     }
 
-    return resultTable;
+    return m_inputTable.getSlicedTable(includedRows);
 }
