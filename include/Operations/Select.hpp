@@ -6,6 +6,7 @@
 #include <functional>
 #include "../DataHandling/Table.hpp"
 #include "../DataHandling/Condition.hpp"
+#include "../Operations/SelectGPU.cuh"
 
 namespace GPUDBMS
 {
@@ -31,7 +32,7 @@ namespace GPUDBMS
          *
          * @return Table The resulting table containing only rows that satisfy the condition.
          */
-        Table execute();
+        Table execute(bool useGPU = false);
 
         /**
          * @brief Execute the selection operation on CPU (fallback).
@@ -39,6 +40,8 @@ namespace GPUDBMS
          * @return Table The resulting table containing only rows that satisfy the condition.
          */
         Table executeCPU();
+
+        Table executeGPU();
 
     private:
         const Table &m_inputTable;
@@ -65,7 +68,7 @@ namespace GPUDBMS
          *
          * @return Table The resulting table containing only the specified columns.
          */
-        Table execute();
+        Table execute(bool useGPU = false);
 
         /**
          * @brief Execute the projection operation on CPU (fallback).

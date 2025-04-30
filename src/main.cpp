@@ -11,6 +11,8 @@
 #include "../include/Operations/Join.hpp"
 #include "../include/SQLProcessing/SQLQueryProcessor.hpp"
 
+#define USE_GPU 1
+
 using namespace GPUDBMS;
 
 // Helper function to create a test table
@@ -79,13 +81,13 @@ void testSelect()
     Select selectOp(testTable, *condition);
 
     // Execute on CPU
-    Table resultCPU = selectOp.executeCPU();
+    Table resultCPU = selectOp.execute();
     assert(resultCPU.getRowCount() == 3);
 
     // Execute on GPU if available
     try
     {
-        Table resultGPU = selectOp.execute();
+        Table resultGPU = selectOp.execute(USE_GPU);
         assert(resultGPU.getRowCount() == 3);
         std::cout << "GPU Select test passed!" << std::endl;
     }
@@ -386,7 +388,7 @@ void testJoin()
     std::cout << "CPU Join test passed!" << std::endl;
 }
 
-void testSelectQueryParser(SQLQueryProcessor& processor)
+void testSelectQueryParser(SQLQueryProcessor &processor)
 {
 
     try
@@ -411,7 +413,7 @@ void testSelectQueryParser(SQLQueryProcessor& processor)
     }
 }
 
-void testAggregationsParser(SQLQueryProcessor& processor)
+void testAggregationsParser(SQLQueryProcessor &processor)
 {
     try
     {
@@ -502,8 +504,8 @@ void testSQLQueryProcessor()
 
     processor.registerTable("employees", employeesTable);
 
-    // testSelectQueryParser(processor);
-    // testAggregationsParser(processor);
+    testSelectQueryParser(processor);
+    testAggregationsParser(processor);
     testOrderBySQL(processor);
 
     std::cout << "SQL Query Processor test passed!" << std::endl;
@@ -512,14 +514,14 @@ int main()
 {
     try
     {
-        // testSelect();
+        testSelect();
         // testProject();
         // testComplexCondition();
         // testFilter();
         // testOrderBy();
         // testAggregator();
         // testJoin();
-        testSQLQueryProcessor();
+        // testSQLQueryProcessor();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }

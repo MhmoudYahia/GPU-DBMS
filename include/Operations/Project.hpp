@@ -30,7 +30,7 @@ namespace GPUDBMS
          *
          * @return Table The resulting table containing only the specified columns.
          */
-        Table execute();
+        Table execute(bool useGPU = false);
 
         /**
          * @brief Execute the projection operation on CPU (fallback).

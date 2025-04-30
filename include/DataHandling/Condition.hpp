@@ -26,6 +26,7 @@ namespace GPUDBMS
         IN
     };
 
+
     /**
      * @enum LogicalOperator
      * @brief Enumeration of logical operators for combining conditions
@@ -60,6 +61,7 @@ namespace GPUDBMS
          * @return bool Whether the condition is satisfied
          */
         virtual bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
+        virtual bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
 
         /**
          * @brief Get the CUDA compatible condition string for GPU execution
@@ -98,6 +100,8 @@ namespace GPUDBMS
         ~ComparisonCondition() override = default;
 
         bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+        bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+
         std::string getCUDACondition() const override;
         std::unique_ptr<Condition> clone() const override;
 
@@ -145,6 +149,8 @@ namespace GPUDBMS
         LogicalCondition(std::unique_ptr<Condition> left, LogicalOperator op, std::unique_ptr<Condition> right = nullptr);
 
         bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+        bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
+
         std::string getCUDACondition() const override;
         std::unique_ptr<Condition> clone() const override;
 

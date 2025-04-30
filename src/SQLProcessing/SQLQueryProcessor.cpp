@@ -281,7 +281,7 @@ namespace GPUDBMS
 
             // Execute the join
             Join joinOp(leftTable, rightTable, *joinCondition, joinType);
-            resultTable = joinOp.executeCPU();
+            resultTable = joinOp.execute();
         }
         else
         {
@@ -293,7 +293,7 @@ namespace GPUDBMS
         {
             auto condition = translateWhereCondition(stmt->whereClause);
             Select selectOp(resultTable, *condition);
-            resultTable = selectOp.executeCPU();
+            resultTable = selectOp.execute();
         }
 
         // Check if this query uses aggregation
@@ -416,7 +416,7 @@ namespace GPUDBMS
             }
 
             Aggregator aggregator(resultTable, aggregations, groupByColumn);
-            resultTable = aggregator.executeCPU();
+            resultTable = aggregator.execute();
         }
         // If no aggregation, handle normal SELECT (projection)
         else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
@@ -433,7 +433,7 @@ namespace GPUDBMS
             if (!projectColumns.empty())
             {
                 Project projectOp(resultTable, projectColumns);
-                resultTable = projectOp.executeCPU();
+                resultTable = projectOp.execute();
             }
         }
 
@@ -448,7 +448,7 @@ namespace GPUDBMS
                 {
                     SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
                     OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
-                    resultTable = orderByOp.executeCPU();
+                    resultTable = orderByOp.execute();
                 }
                 else
                 {
@@ -475,7 +475,7 @@ namespace GPUDBMS
                 }
 
                 OrderBy orderByOp(resultTable, sortColumns, sortOrders);
-                resultTable = orderByOp.executeCPU();
+                resultTable = orderByOp.execute();
             }
         }
 

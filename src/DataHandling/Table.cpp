@@ -187,6 +187,7 @@ namespace GPUDBMS
         return DataType::BOOL;
     }
 
+
     // Table implementation
     Table::Table() {}
 

@@ -90,7 +90,7 @@ namespace GPUDBMS
             m_data.push_back(value);
         }
 
-        const T &getValue(size_t index) const
+        T getValue(size_t index) const
         {
             if (index >= m_data.size())
             {

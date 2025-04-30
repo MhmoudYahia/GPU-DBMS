@@ -26,11 +26,12 @@ namespace GPUDBMS
         }
     }
 
-    Table Project::execute()
+    Table Project::execute(bool useGPU)
     {
-        // For now, just call CPU implementation
-        // TODO: Implement GPU version
-        return executeCPU();
+        if (useGPU)
+            return executeCPU(); // TODO: Implement GPU version
+        else
+            return executeCPU();
     }
 
     Table Project::executeCPU()

@@ -12,11 +12,12 @@ namespace GPUDBMS
     {
     }
 
-    Table Select::execute()
+    Table Select::execute(bool useGPU)
     {
-        // For now, just call CPU implementation
-        // TODO: Implement GPU version
-        return executeCPU();
+        if (useGPU)
+            return executeGPU();
+        else
+            return executeCPU();
     }
 
     Table Select::executeCPU()
@@ -75,7 +76,7 @@ namespace GPUDBMS
             }
 
             // Evaluate condition on this row
-            if (m_condition.evaluate(colsType,rowData, columnNameToIndex))
+            if (m_condition.evaluate(colsType, rowData, columnNameToIndex))
             {
                 // Add the row to result table if condition is satisfied
                 for (size_t col = 0; col < colCount; ++col)
@@ -117,6 +118,12 @@ namespace GPUDBMS
         }
 
         return resultTable;
+    }
+
+    Table Select::executeGPU()
+    {
+
+        return launchSelectKernel(m_inputTable, m_condition);
     }
 
 } // namespace GPUDBMS
