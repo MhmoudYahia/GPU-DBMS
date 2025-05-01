@@ -5,9 +5,11 @@
 #include <unordered_map>
 #include "../DataHandling/Table.hpp"
 #include "../DataHandling/Condition.hpp"
+#include "../DataHandling/StorageManager.hpp"
 
 // Forward declarations for SQL parser types
-namespace hsql {
+namespace hsql
+{
     class SQLStatement;
     class SelectStatement;
     class CreateStatement;
@@ -15,36 +17,46 @@ namespace hsql {
     class Expr;
 }
 
-namespace GPUDBMS {
+namespace GPUDBMS
+{
 
-class SQLQueryProcessor {
-public:
-    SQLQueryProcessor();
-    ~SQLQueryProcessor();
+    class SQLQueryProcessor
+    {
+    public:
+        SQLQueryProcessor();
+        SQLQueryProcessor(const std::string& dataDirectory);
+        ~SQLQueryProcessor();
 
-    // Process a SQL query and return the result table
-    Table processQuery(const std::string& query);
-    
-    // Add tables to the processor
-    void registerTable(const std::string& name, const Table& table);
+        // Process a SQL query and return the result table
+        Table processQuery(const std::string &query);
 
-private:
-    // Tables in memory - in a real implementation, you'd have a proper catalog
-    std::unordered_map<std::string, Table> tables;
-    
-    // Helper methods to handle different statement types
-    Table executeSelectStatement(const hsql::SelectStatement* stmt);
-    Table executeCreateStatement(const hsql::CreateStatement* stmt); 
-    Table executeInsertStatement(const hsql::InsertStatement* stmt); 
-    
-    // Helper to create a table from schema definition
-    Table createTableFromSchema(const hsql::CreateStatement* stmt);
-    
-    // Helper to convert SQL expressions to conditions
-    std::unique_ptr<Condition> translateWhereCondition(const hsql::Expr* expr);
-    
-    // Helper to get an existing table by name
-    Table& getTable(const std::string& name);
-};
+        // Add tables to the processor
+        void registerTable(const std::string &name, const Table &table);
+
+        // Get a reference to a table
+        Table &getTable(const std::string &name);
+
+        // Load a table from CSV
+        Table loadTableFromCSV(const std::string &tableName);
+
+        // Save a table to CSV
+        void saveTableToCSV(const std::string &tableName, const Table &table);
+
+    private:
+        // Tables in memory - in a real implementation, you'd have a proper catalog
+        std::unordered_map<std::string, Table> tables;
+        std::unique_ptr<StorageManager> storageManager;
+
+        // Helper methods to handle different statement types
+        Table executeSelectStatement(const hsql::SelectStatement *stmt);
+        Table executeCreateStatement(const hsql::CreateStatement *stmt);
+        Table executeInsertStatement(const hsql::InsertStatement *stmt);
+
+        // Helper to create a table from schema definition
+        Table createTableFromSchema(const hsql::CreateStatement *stmt);
+
+        // Helper to convert SQL expressions to conditions
+        std::unique_ptr<Condition> translateWhereCondition(const hsql::Expr *expr);
+    };
 
 } // namespace GPUDBMS

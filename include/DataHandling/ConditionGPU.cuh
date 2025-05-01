@@ -9,7 +9,7 @@
 struct GPUCondition
 {
     GPUDBMS::ComparisonOperator op;
-    GPUDBMS::DataType type;
+    // GPUDBMS::DataType type;
     int columnIndex;
     union
     {

@@ -2,7 +2,8 @@ rm -rf build
 mkdir build
 cd build
 
-cmake .. -DCUDA_AVAILABLE=OFF
+cmake .. 
+
 make
 
 ./bin/sqlqueryprocessor

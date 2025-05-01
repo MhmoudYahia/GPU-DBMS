@@ -23,6 +23,7 @@ namespace GPUDBMS
         DOUBLE,
         VARCHAR,
         BOOL,
+        DATE,
         STRING // Added STRING type based on usage
     };
 

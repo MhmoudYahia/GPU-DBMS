@@ -18,7 +18,40 @@ namespace GPUDBMS
 
     SQLQueryProcessor::SQLQueryProcessor()
     {
-        // Don't initialize with hardcoded tables
+    }
+
+    SQLQueryProcessor::SQLQueryProcessor(const std::string &dataDirectory)
+    {
+        storageManager = std::make_unique<StorageManager>(dataDirectory);
+        storageManager->loadAllTables();
+
+        // Make all tables available to the query processor
+        for (const auto &tableName : storageManager->getTableNames())
+        {
+            tables[tableName] = storageManager->getTable(tableName);
+        }
+    }
+
+    Table SQLQueryProcessor::loadTableFromCSV(const std::string &tableName)
+    {
+        if (!storageManager)
+        {
+            throw std::runtime_error("StorageManager not initialized - cannot load table");
+        }
+
+        Table table = storageManager->loadTableFromCSV(tableName);
+        tables[tableName] = table;
+        return table;
+    }
+
+    void SQLQueryProcessor::saveTableToCSV(const std::string &tableName, const Table &table)
+    {
+        if (!storageManager)
+        {
+            throw std::runtime_error("StorageManager not initialized - cannot save table");
+        }
+
+        storageManager->saveTableToCSV(tableName, table);
     }
 
     // Add tables to the processor
