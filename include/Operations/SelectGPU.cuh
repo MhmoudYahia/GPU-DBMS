@@ -5,17 +5,10 @@
 #include "../../include/DataHandling/Table.hpp"
 
 __global__ void selectKernel(
-    GPUDBMS::ComparisonOperator op,
     int numRows,
-    const int *intCol,
-    const float *floatCol,
-    const bool *boolCol,
-    const double *doubleCol,
-    const char *stringBuffer,
-    const int *stringOffsets,
-    const GPUDBMS::DataType columnType,
-    bool *outputFlags,
-    std::string query);
+    int numConditions,
+    const ConditionGPU *conditions,
+    bool *outputFlags);
 
 __device__ bool compare(GPUDBMS::ComparisonOperator op, int a, int b);
 
