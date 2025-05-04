@@ -167,13 +167,13 @@ namespace GPUDBMS
         }
     }
 
-    bool *ComparisonCondition::evaluateGPU(
-        const std::vector<DataType> &colsType,
-        const std::vector<std::string> &row,
-        std::unordered_map<std::string, int> columnNameToIndex) const
-    {
-        return launchFilterKernel(m_columnName, m_operator, m_value, colsType, row, columnNameToIndex);
-    }
+    // bool *ComparisonCondition::evaluateGPU(
+    //     const std::vector<DataType> &colsType,
+    //     const std::vector<std::string> &row,
+    //     std::unordered_map<std::string, int> columnNameToIndex) const
+    // {
+    //     return launchFilterKernel(m_columnName, m_operator, m_value, colsType, row, columnNameToIndex);
+    // }
 
     std::string ComparisonCondition::getCUDACondition() const
     {
@@ -250,20 +250,20 @@ namespace GPUDBMS
         }
     }
 
-    bool *LogicalCondition::evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
-    {
-        // Prepare GPU data
-        int numRows = row.size();
-        int **intCols = new int *[numRows];
-        float **floatCols = new float *[numRows];
-        bool **boolCols = new bool *[numRows];
-        char *stringBuffer = new char[256 * numRows]; // Assuming max string length of 256
-        int *stringOffsets = new int[numRows];
-        bool *outputFlags = new bool[numRows];
+    // bool *LogicalCondition::evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const
+    // {
+    //     // Prepare GPU data
+    //     int numRows = row.size();
+    //     int **intCols = new int *[numRows];
+    //     float **floatCols = new float *[numRows];
+    //     bool **boolCols = new bool *[numRows];
+    //     char *stringBuffer = new char[256 * numRows]; // Assuming max string length of 256
+    //     int *stringOffsets = new int[numRows];
+    //     bool *outputFlags = new bool[numRows];
 
-        std::fill(outputFlags, outputFlags + numRows, false);
-        return outputFlags;
-    }
+    //     std::fill(outputFlags, outputFlags + numRows, false);
+    //     return outputFlags;
+    // }
 
     std::string LogicalCondition::getCUDACondition() const
     {
