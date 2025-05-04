@@ -35,7 +35,8 @@ namespace GPUDBMS
     {
         AND,
         OR,
-        NOT
+        NOT,
+        NONE
     };
 
     /**
