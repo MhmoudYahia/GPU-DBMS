@@ -1,19 +1,6 @@
 #include "../../include/Operations/SelectGPU.cuh"
 #include <iostream>
 
-struct ColumnInfoGPU
-{
-    GPUDBMS::DataType type;
-    std::string name;
-    const void *data;
-};
-struct ConditionGPU
-{
-    GPUDBMS::ComparisonOperator comparisonOp; // The comparison operator (>, <, ==, etc.)
-    GPUDBMS::LogicalOperator logicalOp;       // The logical operator with previous condition (AND, OR, etc.)
-    ColumnInfoGPU columnInfo;                 // Column to compare
-    const void *queryValue;                   // Value to compare against
-};
 
 __global__ void selectKernel(
     int numRows,
