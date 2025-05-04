@@ -19,10 +19,10 @@ cmake --build . -- -j$(nproc)
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
-    echo "Build successful! Running SQLQueryProcessor..."
+    echo "Build successful! Running GPUDBMS..."
     
     # Run the executable
-    ./bin/sqlqueryprocessor "$@"
+    ./bin/GPUDBMS "$@"
 else
     echo "Build failed. Please check the errors above."
     exit 1

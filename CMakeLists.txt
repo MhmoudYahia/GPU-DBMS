@@ -5,7 +5,7 @@ set(CMAKE_C_COMPILER "/usr/bin/gcc")
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
 # Set project first to avoid re-evaluation issues
-project(SQLQueryProcessor LANGUAGES CXX)
+project(GPUDBMS LANGUAGES CXX)
 
 # Check if CUDA is available
 include(CheckLanguage)
@@ -44,28 +44,28 @@ if(CUDA_AVAILABLE)
 endif()
 
 # Create executable
-add_executable(sqlqueryprocessor ${SOURCES})
+add_executable(GPUDBMS ${SOURCES})
 
 # Link libraries
 if(CUDA_AVAILABLE)
-    target_link_libraries(sqlqueryprocessor PRIVATE cudart)
-    target_compile_definitions(sqlqueryprocessor PRIVATE GPU_AVAILABLE)
+    target_link_libraries(GPUDBMS PRIVATE cudart)
+    target_compile_definitions(GPUDBMS PRIVATE GPU_AVAILABLE)
 endif()
 
 # Set output directory
-set_target_properties(sqlqueryprocessor 
+set_target_properties(GPUDBMS 
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 if(CUDA_AVAILABLE)
-    set_target_properties(sqlqueryprocessor PROPERTIES
+    set_target_properties(GPUDBMS PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON
     )
 endif()
 
 # Installation
-install(TARGETS sqlqueryprocessor DESTINATION bin)
+install(TARGETS GPUDBMS DESTINATION bin)
 
 # Enable testing if tests directory exists
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests)
@@ -87,10 +87,10 @@ if(SQLPARSER_INCLUDE_DIR AND SQLPARSER_LIBRARY)
   # Add the new SQLProcessing sources
   set(SOURCES 
       ${SOURCES}
-      src/SQLProcessing/SQLQueryProcessor.cpp)
+      src/SQLProcessing/GPUDBMS.cpp)
 
   # Link against the SQL parser library
-  target_link_libraries(sqlqueryprocessor PRIVATE ${SQLPARSER_LIBRARY})
+  target_link_libraries(GPUDBMS PRIVATE ${SQLPARSER_LIBRARY})
 else()
   message(FATAL_ERROR "SQL Parser not found. Please install the SQL Parser library or specify its location.")
 endif()

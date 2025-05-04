@@ -6,7 +6,7 @@ cmake ..
 
 make
 
-./bin/sqlqueryprocessor
+./bin/GPUDBMS
 
 
 
