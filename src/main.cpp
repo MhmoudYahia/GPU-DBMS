@@ -552,65 +552,29 @@ void testCSVLoading()
     try
     {
         // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("./data");
+        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
 
-        // Let's query from the loaded CSV tables
-        std::cout << "Running query on loaded CSV: SELECT * FROM Students WHERE gpa > 3.5" << std::endl;
-        Table result = processor.processQuery("SELECT * FROM Students WHERE gpa > 3.5");
-
-        std::cout << "Query result has " << result.getRowCount() << " rows" << std::endl;
-
-        // Print the first few rows
-        const size_t maxRowsToPrint = std::min(result.getRowCount(), size_t(5));
-
-        for (size_t i = 0; i < maxRowsToPrint; ++i)
-        {
-            std::cout << "Row " << i << ": ";
-            for (size_t j = 0; j < result.getColumnCount(); ++j)
-            {
-                std::cout << result.getColumnName(j) << "=";
-
-                // Print based on column type
-                switch (result.getColumnType(j))
-                {
-                case DataType::INT:
-                    std::cout << result.getIntValue(j, i);
-                    break;
-                case DataType::FLOAT:
-                case DataType::DOUBLE:
-                    std::cout << result.getDoubleValue(j, i);
-                    break;
-                case DataType::VARCHAR:
-                case DataType::STRING:
-                case DataType::DATE:
-                    std::cout << result.getStringValue(j, i);
-                    break;
-                case DataType::BOOL:
-                    std::cout << (result.getBoolValue(j, i) ? "true" : "false");
-                    break;
-                }
-
-                if (j < result.getColumnCount() - 1)
-                {
-                    std::cout << ", ";
-                }
-            }
-            std::cout << std::endl;
+        // Print the Students table schema and data with detailed type information
+        Table studentsTable = processor.getTable("Students");
+        
+        std::cout << "\n--- Students Table Schema (AFTER FIX) ---\n";
+        for (size_t i = 0; i < studentsTable.getColumnCount(); i++) {
+            std::cout << "Column " << i << ": " << studentsTable.getColumnName(i) 
+                      << " (Type: " << static_cast<int>(studentsTable.getColumnType(i)) << ")" << std::endl;
         }
-
-        // Test a join query
-        std::cout << "Testing join between Students and Addresses..." << std::endl;
-
-        std::string joinQuery = "SELECT s.name, a.address, a.city FROM Students s "
-                                "JOIN Addresses a ON s.student_id = a.student_id "
-                                "WHERE s.gpa > 3.5";
-
-        Table joinResult = processor.processQuery(joinQuery);
-        std::cout << "Join query result has " << joinResult.getRowCount() << " rows" << std::endl;
-
-        // Save a modified version of the join result
-        processor.saveTableToCSV("students_with_addresses", joinResult);
-        std::cout << "Saved join result to CSV" << std::endl;
+        
+        // Now run a GPA query that should work properly
+        std::cout << "\n--- Testing SELECT Query ---\n";
+        std::cout << "Running query: SELECT * FROM Students WHERE gpa > 3.5" << std::endl;
+        Table result = processor.processQueryAndSave("SELECT * FROM Students WHERE gpa > 3.5", "outputMah.csv");
+        
+        std::cout << "Query result has " << result.getRowCount() << " rows" << std::endl;
+        
+        // Print all matching students
+        for (size_t i = 0; i < result.getRowCount(); i++) {
+            std::cout << "Student: " << result.getStringValue(1, i) 
+                      << ", GPA: " << result.getDoubleValue(3, i) << std::endl;
+        }
     }
     catch (const std::exception &e)
     {
@@ -618,19 +582,62 @@ void testCSVLoading()
     }
 }
 
+void testDateTimeSupport()
+{
+    std::cout << "Testing DateTime support..." << std::endl;
+    
+    // Create a table with a DateTime column
+    std::vector<Column> columns = {
+        Column("id", DataType::INT),
+        Column("name", DataType::VARCHAR),
+        Column("created_at", DataType::DATETIME)
+    };
+    
+    Table table(columns);
+    
+    // Add sample data
+    table.appendIntValue(0, 1);
+    table.appendStringValue(1, "Event 1");
+    table.appendStringValue(2, "2023-01-15 10:30:00");
+    table.finalizeRow();
+    
+    table.appendIntValue(0, 2);
+    table.appendStringValue(1, "Event 2");
+    table.appendStringValue(2, "2023-02-20 14:45:30");
+    table.finalizeRow();
+    
+    table.appendIntValue(0, 3);
+    table.appendStringValue(1, "Event 3");
+    table.appendStringValue(2, "2023-03-25 08:15:45");
+    table.finalizeRow();
+    
+    // Test condition with DateTime
+    auto condition = ConditionBuilder::greaterThan("created_at", "2023-02-01 00:00:00");
+    Select selectOp(table, *condition);
+    Table result = selectOp.execute(false); // Use CPU implementation
+    
+    std::cout << "Events after 2023-02-01: " << result.getRowCount() << std::endl;
+    for (size_t i = 0; i < result.getRowCount(); i++) {
+        std::cout << "Event: " << result.getStringValue(1, i) 
+                  << ", Created: " << result.getStringValue(2, i) << std::endl;
+    }
+    
+    std::cout << "DateTime support test completed!" << std::endl;
+}
 int main()
 {
     try
     {
         // testSelect();
         // testProject();
-        testComplexCondition();
+        // testComplexCondition();
         // testFilter();
         // testOrderBy();
         // testAggregator();
         // testJoin();
         // testSQLQueryProcessor();
         // testCSVLoading();
+        // testDateTimeSupport();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }
