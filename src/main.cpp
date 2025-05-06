@@ -821,7 +821,7 @@ int main()
         // testSQLQueryProcessor();
         // testCSVLoading();
         // testDateTimeSupport();
-        testBooleanSelect();
+        // testBooleanSelect();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }

@@ -28,8 +28,6 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b);
 
 __device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b);
 
-size_t getTypeSize(GPUDBMS::DataType type);
-
 extern "C" GPUDBMS::Table launchSelectKernel(
     const GPUDBMS::Table &m_inputTable,
     const GPUDBMS::Condition &m_condition);

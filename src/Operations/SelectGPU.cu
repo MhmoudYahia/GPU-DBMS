@@ -277,19 +277,19 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
         case GPUDBMS::DataType::INT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
-            condition.columnInfo.data = col.getData().data();
+            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
             break;
         }
         case GPUDBMS::DataType::FLOAT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
-            condition.columnInfo.data = col.getData().data();
+            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
             break;
         }
         case GPUDBMS::DataType::DOUBLE:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
-            condition.columnInfo.data = col.getData().data();
+            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
             break;
         }
         case GPUDBMS::DataType::BOOL:
@@ -318,25 +318,6 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
     }
 
     return conditions;
-}
-
-// Helper function to get the size of different data types
-size_t getTypeSize(GPUDBMS::DataType type) {
-    switch (type) {
-        case GPUDBMS::DataType::INT:
-            return sizeof(int);
-        case GPUDBMS::DataType::FLOAT:
-            return sizeof(float);
-        case GPUDBMS::DataType::DOUBLE:
-            return sizeof(double);
-        case GPUDBMS::DataType::BOOL:
-            return sizeof(bool);
-        case GPUDBMS::DataType::STRING:
-        case GPUDBMS::DataType::VARCHAR:
-            return 256; // Assuming fixed size for strings
-        default:
-            return 0;
-    }
 }
 
 extern "C" GPUDBMS::Table launchSelectKernel(
