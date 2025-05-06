@@ -205,4 +205,5 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
 
     // Return sorted table
     return inputTable.getSlicedTable(sortedIndices);
+
 }

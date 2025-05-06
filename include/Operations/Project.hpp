@@ -1,11 +1,12 @@
-#ifndef SELECT_HPP
-#define SELECT_HPP
+#ifndef PROJECT_HPP
+#define PROJECT_HPP
 
 #include <vector>
 #include <string>
 #include <functional>
 #include "../DataHandling/Table.hpp"
 #include "../DataHandling/Condition.hpp"
+#include "../Operations/ProjectGPU.cuh"
 
 namespace GPUDBMS
 {
@@ -38,6 +39,13 @@ namespace GPUDBMS
          * @return Table The resulting table containing only the specified columns.
          */
         Table executeCPU();
+
+        /**
+         * @brief Execute the projection operation on GPU.
+         *
+         * @return Table The resulting table containing only the specified columns.
+         */
+        Table executeGPU();
 
     private:
         const Table &m_inputTable;

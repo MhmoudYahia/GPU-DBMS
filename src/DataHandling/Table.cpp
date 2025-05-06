@@ -167,19 +167,19 @@ namespace GPUDBMS
         case GPUDBMS::DataType::INT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
-            colInfo.data = col.getData().data();
+            colInfo.data = const_cast<int*>(col.getData().data());
             break;
         }
         case GPUDBMS::DataType::FLOAT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
-            colInfo.data = col.getData().data();
+            colInfo.data = const_cast<float*>(col.getData().data());
             break;
         }
         case GPUDBMS::DataType::DOUBLE:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
-            colInfo.data = col.getData().data();
+            colInfo.data = const_cast<double*>(col.getData().data());
             break;
         }
             // case GPUDBMS::DataType::BOOL: {
@@ -323,23 +323,7 @@ namespace GPUDBMS
         }
     }
 
-    template <typename T>
-    void Table::setColumnData(size_t columnIndex, std::vector<T> data)
-    {
-        if (columnIndex >= m_columnData.size())
-        {
-            throw std::out_of_range("Column index out of range");
-        }
-
-        auto columnType = m_columns[columnIndex].getType();
-        if (columnType != ColumnDataImpl<T>().getType())
-        {
-            throw std::invalid_argument("Data type mismatch for column");
-        }
-
-        auto &columnData = dynamic_cast<ColumnDataImpl<T> &>(*m_columnData[columnIndex]);
-        columnData.getData() = data;
-    }
+    
 
     const std::vector<Column> &Table::getColumns() const
     {
@@ -498,6 +482,35 @@ namespace GPUDBMS
         for (const auto &columnData : m_columnData)
         {
             newTable.m_columnData.push_back(columnData->createEmpty());
+        }
+
+        return newTable;
+    }
+
+    Table Table::createSlicedEmptyWithSameSchema(const std::vector<std::string> &projectColumns) const
+    {
+        Table newTable;
+
+        // Copy schema and track which columns to include
+        std::vector<bool> includeColumn(m_columns.size(), false);
+        for (size_t i = 0; i < m_columns.size(); ++i)
+        {
+            const auto &column = m_columns[i];
+            if (std::find(projectColumns.begin(), projectColumns.end(), column.getName()) != projectColumns.end())
+            {
+                newTable.m_columns.push_back(column);
+                newTable.m_columnNameToIndex[column.getName()] = newTable.m_columns.size() - 1;
+                includeColumn[i] = true;
+            }
+        }
+
+        // Create empty column data with same types
+        for (size_t i = 0; i < m_columnData.size(); ++i)
+        {
+            if (includeColumn[i])
+            {
+                newTable.m_columnData.push_back(m_columnData[i]->createEmpty());
+            }
         }
 
         return newTable;

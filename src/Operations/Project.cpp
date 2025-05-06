@@ -1,4 +1,4 @@
-#include "../../include/Operations/Select.hpp"
+#include "../../include/Operations/Project.hpp"
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -29,7 +29,7 @@ namespace GPUDBMS
     Table Project::execute(bool useGPU)
     {
         if (useGPU)
-            return executeCPU(); // TODO: Implement GPU version
+            return executeGPU();
         else
             return executeCPU();
     }
@@ -84,6 +84,18 @@ namespace GPUDBMS
         }
 
         return resultTable;
+    }
+
+    Table Project::executeGPU()
+    {
+        std::vector<std::string> projectColumns;
+
+        for (int index : m_columnIndices)
+        {
+            projectColumns.push_back(m_inputTable.getColumns()[index].getName());
+        }
+
+        return launchProjectKernel(m_inputTable, projectColumns);
     }
 
 } // namespace GPUDBMS

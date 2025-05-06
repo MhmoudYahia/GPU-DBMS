@@ -32,7 +32,7 @@ namespace GPUDBMS
     {
         DataType type;
         std::string name;
-        const void *data;
+        void *data;
     };
 
     /**
@@ -223,8 +223,22 @@ namespace GPUDBMS
          * @param data The data to set for the column
          */
         template <typename T>
-        void setColumnData(size_t columnIndex, std::vector<T> h_int_data);
+        void setColumnData(size_t columnIndex, std::vector<T> data)
+        {
+            if (columnIndex >= m_columnData.size())
+            {
+                throw std::out_of_range("Column index out of range");
+            }
 
+            auto columnType = m_columns[columnIndex].getType();
+            if (columnType != ColumnDataImpl<T>().getType())
+            {
+                throw std::invalid_argument("Data type mismatch for column");
+            }
+
+            auto &columnData = dynamic_cast<ColumnDataImpl<T> &>(*m_columnData[columnIndex]);
+            columnData.getData() = data;
+        }
         /**
          * @brief Get all columns in the table
          *
@@ -304,6 +318,8 @@ namespace GPUDBMS
          * @return Table An empty table with the same schema
          */
         Table createEmptyWithSameSchema() const;
+
+        Table createSlicedEmptyWithSameSchema(const std::vector<std::string> &projectColumns) const;
 
         /**
          * @brief Get an integer value from the table

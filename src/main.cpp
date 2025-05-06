@@ -112,6 +112,12 @@ void testSelect()
 }
 
 // Test Project operation
+#include <iostream>
+#include <chrono>
+#include <cassert>
+
+// Assuming you have a Table class, Project operation, and necessary dependencies defined
+
 void testProject()
 {
     std::cout << "Testing Project operation..." << std::endl;
@@ -122,29 +128,46 @@ void testProject()
     std::vector<std::string> columns = {"id", "name"};
     Project projectOp(testTable, columns);
 
+    // Measure CPU execution time
+    auto startCPU = std::chrono::high_resolution_clock::now();
+
     // Execute on CPU
-    Table resultCPU = projectOp.executeCPU();
+    Table resultCPU = projectOp.execute();
+
+    auto endCPU = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> durationCPU = endCPU - startCPU;
+
     assert(resultCPU.getColumnCount() == 2);
     assert(resultCPU.getColumnIndex("id") != -1);
     assert(resultCPU.getColumnIndex("name") != -1);
     assert(resultCPU.getColumnIndex("age") == -1);
 
-    // Execute on GPU if available
+    std::cout << "CPU Project test passed!" << std::endl;
+    std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
+
+    // Measure GPU execution time (if available)
     try
     {
-        Table resultGPU = projectOp.execute();
+        auto startGPU = std::chrono::high_resolution_clock::now();
+
+        // Execute on GPU
+        Table resultGPU = projectOp.execute(USE_GPU);
+
+        auto endGPU = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> durationGPU = endGPU - startGPU;
+
         assert(resultGPU.getColumnCount() == 2);
         assert(resultGPU.getColumnIndex("id") != -1);
         assert(resultGPU.getColumnIndex("name") != -1);
         assert(resultGPU.getColumnIndex("age") == -1);
+
+        std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
         std::cout << "GPU Project test passed!" << std::endl;
     }
     catch (const std::exception &e)
     {
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
-
-    std::cout << "CPU Project test passed!" << std::endl;
 }
 
 // Test complex condition
@@ -228,7 +251,6 @@ void testOrderBy()
     std::cout << "CPU OrderBy execution time (age DESC, salary ASC): " << multiColElapsed.count() << " seconds" << std::endl;
     assert(multiColResult.getIntValue(multiColResult.getColumnIndex("age"), 0) == 10000000);
 
-
     // ---------------------- GPU TESTS ---------------------- //
 
     try
@@ -243,7 +265,6 @@ void testOrderBy()
         assert(resultGPU.getRowCount() == 10000000);
         assert(resultGPU.getIntValue(resultGPU.getColumnIndex("age"), 0) == 10000000);
         std::cout << "GPU OrderBy execution time (age DESC): " << elapsed.count() << " seconds" << std::endl;
-
 
         // 2. Multi-column: age DESC, salary ASC
         start = std::chrono::high_resolution_clock::now();
@@ -371,9 +392,9 @@ void testAggregator()
         end_time = std::chrono::high_resolution_clock::now();
 
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        
+
         std::cout << "GPU COUNT result: " << resultGPU.getIntValue(0, 0)
-        << " | Execution time: " << duration.count() << " ms" << std::endl;
+                  << " | Execution time: " << duration.count() << " ms" << std::endl;
         std::cout << "GPU Aggregator test passed!" << std::endl;
         assert(resultGPU.getRowCount() == 1);
 
@@ -649,23 +670,23 @@ void testCSVLoading()
 
     //     // Print the Students table schema and data with detailed type information
     //     Table studentsTable = processor.getTable("Students");
-        
+
     //     std::cout << "\n--- Students Table Schema (AFTER FIX) ---\n";
     //     for (size_t i = 0; i < studentsTable.getColumnCount(); i++) {
-    //         std::cout << "Column " << i << ": " << studentsTable.getColumnName(i) 
+    //         std::cout << "Column " << i << ": " << studentsTable.getColumnName(i)
     //                   << " (Type: " << static_cast<int>(studentsTable.getColumnType(i)) << ")" << std::endl;
     //     }
-        
+
     //     // Now run a GPA query that should work properly
     //     std::cout << "\n--- Testing SELECT Query ---\n";
     //     std::cout << "Running query: SELECT * FROM Students WHERE gpa > 3.5" << std::endl;
     //     Table result = processor.processQueryAndSave("SELECT * FROM Students WHERE gpa > 3.5", "outputMah.csv");
-        
+
     //     std::cout << "Query result has " << result.getRowCount() << " rows" << std::endl;
-        
+
     //     // Print all matching students
     //     for (size_t i = 0; i < result.getRowCount(); i++) {
-    //         std::cout << "Student: " << result.getStringValue(1, i) 
+    //         std::cout << "Student: " << result.getStringValue(1, i)
     //                   << ", GPA: " << result.getDoubleValue(3, i) << std::endl;
     //     }
     // }
@@ -678,43 +699,43 @@ void testCSVLoading()
 void testDateTimeSupport()
 {
     std::cout << "Testing DateTime support..." << std::endl;
-    
+
     // Create a table with a DateTime column
     std::vector<Column> columns = {
         Column("id", DataType::INT),
         Column("name", DataType::VARCHAR),
-        Column("created_at", DataType::DATETIME)
-    };
-    
+        Column("created_at", DataType::DATETIME)};
+
     Table table(columns);
-    
+
     // Add sample data
     table.appendIntValue(0, 1);
     table.appendStringValue(1, "Event 1");
     table.appendStringValue(2, "2023-01-15 10:30:00");
     table.finalizeRow();
-    
+
     table.appendIntValue(0, 2);
     table.appendStringValue(1, "Event 2");
     table.appendStringValue(2, "2023-02-20 14:45:30");
     table.finalizeRow();
-    
+
     table.appendIntValue(0, 3);
     table.appendStringValue(1, "Event 3");
     table.appendStringValue(2, "2023-03-25 08:15:45");
     table.finalizeRow();
-    
+
     // Test condition with DateTime
     auto condition = ConditionBuilder::greaterThan("created_at", "2023-02-01 00:00:00");
     Select selectOp(table, *condition);
     Table result = selectOp.execute(false); // Use CPU implementation
-    
+
     std::cout << "Events after 2023-02-01: " << result.getRowCount() << std::endl;
-    for (size_t i = 0; i < result.getRowCount(); i++) {
-        std::cout << "Event: " << result.getStringValue(1, i) 
+    for (size_t i = 0; i < result.getRowCount(); i++)
+    {
+        std::cout << "Event: " << result.getStringValue(1, i)
                   << ", Created: " << result.getStringValue(2, i) << std::endl;
     }
-    
+
     std::cout << "DateTime support test completed!" << std::endl;
 }
 int main()
@@ -722,11 +743,11 @@ int main()
     try
     {
         // testSelect();
-        // testProject();
+        testProject();
         // testComplexCondition();
         // testFilter();
         // testOrderBy();
-        testAggregator();
+        // testAggregator();
         // testJoin();
         // testSQLQueryProcessor();
         // testCSVLoading();
