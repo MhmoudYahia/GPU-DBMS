@@ -1,7 +1,6 @@
 #include "../../include/Operations/SelectGPU.cuh"
 #include <iostream>
 
-
 __global__ void selectKernel(
     int numRows,
     int numConditions,
@@ -271,13 +270,73 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
             continue;
         }
 
-        condition.columnInfo=m_inputTable.getColumnInfoGPU(columnName);
-       
+        // We need to get the actual data pointer based on the column type
+        const GPUDBMS::ColumnData &cd = m_inputTable.getColumnData(columnName);
+        switch (colsType[columnIndex])
+        {
+        case GPUDBMS::DataType::INT:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
+            condition.columnInfo.data = col.getData().data();
+            break;
+        }
+        case GPUDBMS::DataType::FLOAT:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
+            condition.columnInfo.data = col.getData().data();
+            break;
+        }
+        case GPUDBMS::DataType::DOUBLE:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
+            condition.columnInfo.data = col.getData().data();
+            break;
+        }
+        case GPUDBMS::DataType::BOOL:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<bool> &>(cd);
+            const std::vector<bool> &boolVec = col.getData();
+
+            // Create a host array of bools
+            bool *h_boolArray = new bool[boolVec.size()];
+
+            // Copy each bit to a full bool
+            for (size_t i = 0; i < boolVec.size(); i++)
+            {
+                h_boolArray[i] = boolVec[i];
+            }
+
+            // We'll use this temporary host array later to copy to device
+            condition.columnInfo.data = h_boolArray;
+
+            break;
+        }
+            // Add cases for other data types as needed
+        }
 
         conditions.push_back(condition);
     }
 
     return conditions;
+}
+
+// Helper function to get the size of different data types
+size_t getTypeSize(GPUDBMS::DataType type) {
+    switch (type) {
+        case GPUDBMS::DataType::INT:
+            return sizeof(int);
+        case GPUDBMS::DataType::FLOAT:
+            return sizeof(float);
+        case GPUDBMS::DataType::DOUBLE:
+            return sizeof(double);
+        case GPUDBMS::DataType::BOOL:
+            return sizeof(bool);
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+            return 256; // Assuming fixed size for strings
+        default:
+            return 0;
+    }
 }
 
 extern "C" GPUDBMS::Table launchSelectKernel(
@@ -376,7 +435,16 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         size_t dataSize = getTypeSize(conditions[i].columnInfo.type) * rowCount;
         cudaMalloc(&d_columnData, dataSize);
         cudaMemcpy(d_columnData, conditions[i].columnInfo.data, dataSize, cudaMemcpyHostToDevice);
+
+        // Store the original host pointer to free it later if it's a bool array
+        // void *original_host_ptr = conditions[i].columnInfo.data;
+
         device_conditions[i].columnInfo.data = d_columnData;
+
+        // Clean up the temporary host array if it's a bool column
+        // if (conditions[i].columnInfo.type == GPUDBMS::DataType::BOOL) {
+        //     delete[] static_cast<bool*>(original_host_ptr);
+        // }
 
         // Allocate and copy query value
         void *d_queryValue = nullptr;
@@ -475,6 +543,27 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, int a, int b)
 __device__ bool compare(GPUDBMS::ComparisonOperator op, float a, float b)
 {
     return compare(op, (double)a, (double)b);
+}
+
+__device__ bool compare(GPUDBMS::ComparisonOperator op, bool a, bool b)
+{
+    switch (op)
+    {
+    case GPUDBMS::ComparisonOperator::EQUAL:
+        return a == b;
+    case GPUDBMS::ComparisonOperator::NOT_EQUAL:
+        return a != b;
+    case GPUDBMS::ComparisonOperator::LESS_THAN:
+        return !a && b; // false < true
+    case GPUDBMS::ComparisonOperator::GREATER_THAN:
+        return a && !b; // true > false
+    case GPUDBMS::ComparisonOperator::LESS_EQUAL:
+        return !a || b; // a <= b is true if a is false or b is true
+    case GPUDBMS::ComparisonOperator::GREATER_EQUAL:
+        return a || !b; // a >= b is true if a is true or b is false
+    default:
+        return false;
+    }
 }
 
 __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b)
