@@ -132,7 +132,7 @@ StorageManager::~StorageManager() {
                 case DataType::BOOL:
                     file << (table.getBoolValue(col, row) ? "true" : "false");
                     break;
-                case DataType::DATETIME:
+                case DataType::DATE:
                     // Format date values properly
                     file << "\"" << table.getStringValue(col, row) << "\"";
                     break;
@@ -320,7 +320,7 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
                 case DataType::BOOL:
                     table.appendBoolValue(col, false);
                     break;
-                case DataType::DATETIME:
+                case DataType::DATE:
                     table.appendStringValue(col, ""); // Store dates as strings
                     break;
                 case DataType::DATETIME:
@@ -354,7 +354,7 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
                 case DataType::BOOL:
                     table.appendBoolValue(col, value == "true" || value == "1");
                     break;
-                case DataType::DATETIME:
+                case DataType::DATE:
                     // Store dates as strings for now
                     table.appendStringValue(col, value);
                     break;
