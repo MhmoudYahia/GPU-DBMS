@@ -5,21 +5,11 @@
 #include <string>
 #include <optional>
 #include "../DataHandling/Table.hpp"
+#include "../Operations/AggregatorGPU.cuh"
 
 namespace GPUDBMS
 {
-    /**
-     * @enum AggregateFunction
-     * @brief Supported aggregate functions
-     */
-    enum class AggregateFunction
-    {
-        COUNT,
-        SUM,
-        AVG,
-        MIN,
-        MAX
-    };
+    
 
     /**
      * @class Aggregation
@@ -87,7 +77,7 @@ namespace GPUDBMS
          * 
          * @return Table The result table with aggregated values
          */
-        Table execute();
+        Table execute(bool useGPU = false);
         
         /**
          * @brief Execute the aggregation on CPU
@@ -95,6 +85,8 @@ namespace GPUDBMS
          * @return Table The result table with aggregated values
          */
         Table executeCPU();
+
+        Table executeGPU();
         
     private:
         const Table& m_inputTable;

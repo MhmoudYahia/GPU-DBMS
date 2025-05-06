@@ -9,9 +9,6 @@
 #include <iostream>
 #include <chrono>
 
-
-
-
 namespace GPUDBMS
 {
 
@@ -217,6 +214,16 @@ namespace GPUDBMS
          * @param column The column definition to add
          */
         void addColumn(const Column &column);
+
+        /**
+         * @brief Set column data using a template for different data types
+         *
+         * @tparam T The data type of the column
+         * @param columnIndex The index of the column
+         * @param data The data to set for the column
+         */
+        template <typename T>
+        void setColumnData(size_t columnIndex, std::vector<T> h_int_data);
 
         /**
          * @brief Get all columns in the table

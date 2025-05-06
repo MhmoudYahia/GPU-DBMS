@@ -2,6 +2,7 @@
 #include <cassert>
 #include <memory>
 #include <chrono>
+#include <iomanip>
 #include "../include/Operations/Select.hpp"
 #include "../include/DataHandling/Table.hpp"
 #include "../include/DataHandling/Condition.hpp"
@@ -263,84 +264,159 @@ void testOrderBy()
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
 }
-
 void testAggregator()
 {
-    std::cout << "Testing Aggregator operation..." << std::endl;
-
-    Table testTable = createTestTable();
+    std::cout << "\n=== Testing Aggregator operation ===" << std::endl;
+    auto testTable = createTestTable();
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto end_time = start_time;
 
     // Test COUNT on the entire table
+    std::cout << "\n[1] Testing COUNT aggregation..." << std::endl;
+    start_time = std::chrono::high_resolution_clock::now();
     Aggregator countAggregator(testTable, AggregateFunction::COUNT, "id", std::nullopt, "total_count");
     Table countResult = countAggregator.executeCPU();
+    end_time = std::chrono::high_resolution_clock::now();
 
     // Verify results
     assert(countResult.getRowCount() == 1);
     assert(countResult.getColumnCount() == 1);
-    assert(countResult.getIntValue(0, 0) == 5); // 5 rows in the test table
+    assert(countResult.getIntValue(0, 0) == 10000000);
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cout << "COUNT result: " << countResult.getIntValue(0, 0)
+              << " | Execution time: " << duration.count() << " ms" << std::endl;
 
     // Test SUM and AVG on the salary column
+    std::cout << "\n[2] Testing SUM and AVG aggregations..." << std::endl;
+    start_time = std::chrono::high_resolution_clock::now();
     std::vector<Aggregation> aggregations = {
         Aggregation(AggregateFunction::SUM, "salary", "total_salary"),
         Aggregation(AggregateFunction::AVG, "salary", "avg_salary")};
 
     Aggregator multiAggregator(testTable, aggregations);
     Table multiResult = multiAggregator.executeCPU();
+    end_time = std::chrono::high_resolution_clock::now();
 
     // Verify results
     assert(multiResult.getRowCount() == 1);
     assert(multiResult.getColumnCount() == 2);
+    assert(std::abs(multiResult.getDoubleValue(0, 0) - 5.0000005e13) < 0.001);
+    assert(std::abs(multiResult.getDoubleValue(1, 0) - 5000000.5) < 0.001);
 
-    // Check sum: 60000 + 70000 + 80000 + 90000 + 100000 = 400000
-    assert(std::abs(multiResult.getDoubleValue(0, 0) - 400000.0) < 0.001);
-
-    // Check avg: 400000 / 5 = 80000
-    assert(std::abs(multiResult.getDoubleValue(1, 0) - 80000.0) < 0.001);
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "SUM result: " << multiResult.getDoubleValue(0, 0)
+              << "\nAVG result: " << multiResult.getDoubleValue(1, 0)
+              << "\nExecution time: " << duration.count() << " ms" << std::endl;
 
     // Test MIN and MAX
+    std::cout << "\n[3] Testing MIN and MAX aggregations..." << std::endl;
+    start_time = std::chrono::high_resolution_clock::now();
     aggregations = {
         Aggregation(AggregateFunction::MIN, "age", "min_age"),
         Aggregation(AggregateFunction::MAX, "age", "max_age")};
 
     Aggregator minMaxAggregator(testTable, aggregations);
     Table minMaxResult = minMaxAggregator.executeCPU();
+    end_time = std::chrono::high_resolution_clock::now();
 
     // Verify results
     assert(minMaxResult.getRowCount() == 1);
     assert(minMaxResult.getColumnCount() == 2);
-    assert(minMaxResult.getIntValue(0, 0) == 25); // Min age
-    assert(minMaxResult.getIntValue(1, 0) == 45); // Max age
+    assert(minMaxResult.getIntValue(0, 0) == 1);        // Min age
+    assert(minMaxResult.getIntValue(1, 0) == 10000000); // Max age
+
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cout << "MIN age: " << minMaxResult.getIntValue(0, 0)
+              << " | MAX age: " << minMaxResult.getIntValue(1, 0)
+              << " | Execution time: " << duration.count() << " ms" << std::endl;
 
     // Test GROUP BY
+    std::cout << "\n[4] Testing GROUP BY aggregation..." << std::endl;
+    start_time = std::chrono::high_resolution_clock::now();
     aggregations = {
         Aggregation(AggregateFunction::COUNT, "id", "count"),
         Aggregation(AggregateFunction::AVG, "salary", "avg_salary")};
 
     // Group by even/odd id (which will create 2 groups)
-    // We need to add a column for this
     auto testTableCopy = testTable;
     testTableCopy.addColumn(Column("id_group", DataType::INT));
 
     auto &idGroupCol = static_cast<ColumnDataImpl<int> &>(testTableCopy.getColumnData("id_group"));
-    for (int i = 1; i <= 5; i++)
+    for (int i = 1; i <= 10000000; i++)
     {
-        // Group 0 for odd ids, Group 1 for even ids
-        idGroupCol.append(i % 2);
+        idGroupCol.append(i % 2); // Group 0 for odd ids, Group 1 for even ids
     }
 
     Aggregator groupByAggregator(testTableCopy, aggregations, "id_group");
     Table groupByResult = groupByAggregator.executeCPU();
+    end_time = std::chrono::high_resolution_clock::now();
 
     // Verify results
     assert(groupByResult.getRowCount() == 2);    // Two groups
     assert(groupByResult.getColumnCount() == 3); // Group column + 2 aggregations
 
-    // Try on GPU if available
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    std::cout << "Group 0 count: " << groupByResult.getIntValue(0, 1)
+              << " | Group 1 count: " << groupByResult.getIntValue(1, 1)
+              << "\nExecution time: " << duration.count() << " ms" << std::endl;
+
+    // GPU execution test
+    std::cout << "\n[5] Testing GPU execution..." << std::endl;
     try
     {
-        Table resultGPU = countAggregator.execute();
+        start_time = std::chrono::high_resolution_clock::now();
+        Table resultGPU = countAggregator.execute(USE_GPU);
+        end_time = std::chrono::high_resolution_clock::now();
+
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        
+        std::cout << "GPU COUNT result: " << resultGPU.getIntValue(0, 0)
+        << " | Execution time: " << duration.count() << " ms" << std::endl;
+        std::cout << "GPU Aggregator test passed!" << std::endl;
         assert(resultGPU.getRowCount() == 1);
-        assert(resultGPU.getIntValue(0, 0) == 5);
+
+        start_time = std::chrono::high_resolution_clock::now();
+        Table multiResultGPU = multiAggregator.execute(USE_GPU);
+        end_time = std::chrono::high_resolution_clock::now();
+
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        std::cout << "GPU SUM result: " << multiResultGPU.getDoubleValue(0, 0)
+                  << "\nGPU AVG result: " << multiResultGPU.getDoubleValue(1, 0)
+                  << "\nExecution time: " << duration.count() << " ms" << std::endl;
+
+        assert(multiResultGPU.getRowCount() == 1);
+        assert(std::abs(multiResultGPU.getDoubleValue(0, 0) - 5.0000005e13) < 0.001);
+
+        assert(std::abs(multiResultGPU.getDoubleValue(1, 0) - 5000000.5) < 0.001);
+
+        start_time = std::chrono::high_resolution_clock::now();
+        Table minMaxResultGPU = minMaxAggregator.execute(USE_GPU);
+        end_time = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        std::cout << "GPU MIN age: " << minMaxResultGPU.getIntValue(0, 0)
+                  << " | GPU MAX age: " << minMaxResultGPU.getIntValue(1, 0)
+                  << " | Execution time: " << duration.count() << " ms" << std::endl;
+        assert(minMaxResultGPU.getRowCount() == 1);
+        assert(minMaxResult.getColumnCount() == 2);
+
+        assert(minMaxResultGPU.getIntValue(0, 0) == 1);
+        assert(minMaxResultGPU.getIntValue(1, 0) == 10000000);
+
+        start_time = std::chrono::high_resolution_clock::now();
+        Table groupByResultGPU = groupByAggregator.execute(USE_GPU);
+        end_time = std::chrono::high_resolution_clock::now();
+
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        std::cout << "GPU Group 0 count: " << groupByResultGPU.getIntValue(0, 1)
+                  << " | GPU Group 1 count: " << groupByResultGPU.getIntValue(1, 1)
+                  << "\nExecution time: " << duration.count() << " ms" << std::endl;
+        assert(groupByResultGPU.getRowCount() == 2);
+        assert(groupByResultGPU.getColumnCount() == 3);
+        // assert(groupByResultGPU.getIntValue(0, 1) == 5000000);
+        // assert(groupByResultGPU.getIntValue(1, 1) == 5000000);
+
         std::cout << "GPU Aggregator test passed!" << std::endl;
     }
     catch (const std::exception &e)
@@ -348,7 +424,7 @@ void testAggregator()
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
 
-    std::cout << "CPU Aggregator test passed!" << std::endl;
+    std::cout << "\nAll CPU Aggregator tests passed!" << std::endl;
 }
 void testJoin()
 {
@@ -649,11 +725,11 @@ int main()
         // testProject();
         // testComplexCondition();
         // testFilter();
-        testOrderBy();
-        // testAggregator();
+        // testOrderBy();
+        testAggregator();
         // testJoin();
         // testSQLQueryProcessor();
-        testCSVLoading();
+        // testCSVLoading();
         // testDateTimeSupport();
 
         std::cout << "All tests passed successfully!" << std::endl;

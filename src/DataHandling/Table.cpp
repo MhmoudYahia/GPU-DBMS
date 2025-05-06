@@ -155,7 +155,7 @@ namespace GPUDBMS
     ColumnInfoGPU Table::getColumnInfoGPU(const std::string &columnName) const
     {
         ColumnInfoGPU colInfo;
-        
+
         auto it = m_columnNameToIndex.find(columnName);
         colInfo.type = m_columns[it->second].getType();
         colInfo.name = columnName;
@@ -192,7 +192,7 @@ namespace GPUDBMS
         return colInfo;
     }
 
-        DataType Column::getType() const
+    DataType Column::getType() const
     {
         return m_type;
     }
@@ -321,6 +321,24 @@ namespace GPUDBMS
         default:
             throw std::runtime_error("Unsupported data type for column: " + name);
         }
+    }
+
+    template <typename T>
+    void Table::setColumnData(size_t columnIndex, std::vector<T> data)
+    {
+        if (columnIndex >= m_columnData.size())
+        {
+            throw std::out_of_range("Column index out of range");
+        }
+
+        auto columnType = m_columns[columnIndex].getType();
+        if (columnType != ColumnDataImpl<T>().getType())
+        {
+            throw std::invalid_argument("Data type mismatch for column");
+        }
+
+        auto &columnData = dynamic_cast<ColumnDataImpl<T> &>(*m_columnData[columnIndex]);
+        columnData.getData() = data;
     }
 
     const std::vector<Column> &Table::getColumns() const
