@@ -23,10 +23,8 @@ __global__ void selectKernel(
         {
         case GPUDBMS::DataType::INT:
         {
-            // printf("INT\n");
             const int *col = static_cast<const int *>(cond.columnInfo.data);
             const int query = *static_cast<const int *>(cond.queryValue);
-            // printf("Comparing %d with %d\n", col[row], query);
             currentResult = compare(cond.comparisonOp, col[row], query);
             break;
         }
@@ -34,7 +32,6 @@ __global__ void selectKernel(
         {
             const float *col = static_cast<const float *>(cond.columnInfo.data);
             const float query = *static_cast<const float *>(cond.queryValue);
-            // printf("Comparing %f with %f\n", col[row], query);
             currentResult = compare(cond.comparisonOp, col[row], query);
             break;
         }
@@ -42,7 +39,6 @@ __global__ void selectKernel(
         {
             const double *col = static_cast<const double *>(cond.columnInfo.data);
             const double query = *static_cast<const double *>(cond.queryValue);
-            // printf("Comparing %f with %f\n", col[row], query);
             currentResult = compare(cond.comparisonOp, col[row], query);
             break;
         }
@@ -50,7 +46,6 @@ __global__ void selectKernel(
         {
             const bool *col = static_cast<const bool *>(cond.columnInfo.data);
             const bool query = *static_cast<const bool *>(cond.queryValue);
-            // printf("Comparing %d with %d\n", col[row], query);
             currentResult = compare(cond.comparisonOp, col[row], query);
             break;
         }

@@ -25,6 +25,7 @@ Table createTestTable()
         Column("name", DataType::VARCHAR),
         Column("age", DataType::INT),
         Column("salary", DataType::DOUBLE),
+        Column("isEmployed", DataType::BOOL),
     };
 
     Table table(columns);
@@ -34,6 +35,7 @@ Table createTestTable()
     auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("name"));
     auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
     auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
+    auto &isEmployedCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("isEmployed"));
 
     for (int i = 1; i <= 10000000; i++)
     {
@@ -41,6 +43,7 @@ Table createTestTable()
         nameCol.append("Person" + std::to_string(i));
         ageCol.append(i);
         salaryCol.append(i);
+        isEmployedCol.append(i % 2 == 0);
 
         // Finalize each row after adding all column values
         table.finalizeRow();
@@ -77,8 +80,9 @@ void testSelect()
 
     Table testTable = createTestTable();
 
-    // Test simple selection (age > 30)
-    auto condition = ConditionBuilder::lessThan("age", "5000000");
+    // Test simple selection (age < 30)
+    // auto condition = ConditionBuilder::lessThan("age", "5000000");
+    auto condition = ConditionBuilder::equals("isEmployed", "true");
     Select selectOp(testTable, *condition);
 
     // Execute on CPU
@@ -89,7 +93,7 @@ void testSelect()
 
     std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
     std::cout << "CPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-    assert(resultCPU.getRowCount() == 4999999);
+    assert(resultCPU.getRowCount() == 5000000);
     std::cout << "CPU Select test passed!" << std::endl;
 
     // Execute on GPU if available
@@ -102,7 +106,7 @@ void testSelect()
 
         std::cout << resultGPU.getRowCount() << " rows selected on GPU" << std::endl;
         std::cout << "GPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-        assert(resultGPU.getRowCount() == 4999999);
+        assert(resultGPU.getRowCount() == 5000000);
         std::cout << "GPU Select test passed!" << std::endl;
     }
     catch (const std::exception &e)
@@ -811,8 +815,8 @@ int main()
 {
     try
     {
-        // testSelect();
-        testProject();
+        testSelect();
+        // testProject();
         // testComplexCondition();
         // testFilter();
         // testOrderBy();

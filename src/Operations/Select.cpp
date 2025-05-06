@@ -22,11 +22,6 @@ namespace GPUDBMS
 
     Table Select::executeCPU()
     {
-        // std::cout << m_inputTable.getColumnData(0).size() << std::endl;
-        // std::cout << m_inputTable.getColumnData(1).size() << std::endl;
-        // std::cout << m_inputTable.getColumnData(2).size() << std::endl;
-        // std::cout << m_inputTable.getColumnData(3).size() << std::endl;
-        // std::cout << m_inputTable.getColumnData(4).size() << std::endl;
 
         Table resultTable = m_inputTable.createEmptyWithSameSchema();
         const size_t rowCount = m_inputTable.getRowCount();
