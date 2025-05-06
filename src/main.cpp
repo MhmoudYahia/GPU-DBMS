@@ -192,6 +192,7 @@ void testComplexCondition()
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
 }
+
 void testOrderBy()
 {
     std::cout << "Testing OrderBy operation..." << std::endl;
@@ -549,37 +550,37 @@ void testCSVLoading()
 {
     std::cout << "Testing CSV loading functionality with annotated headers..." << std::endl;
 
-    try
-    {
-        // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+    // try
+    // {
+    //     // Initialize SQLQueryProcessor with the data directory
+    //     SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
 
-        // Print the Students table schema and data with detailed type information
-        Table studentsTable = processor.getTable("Students");
+    //     // Print the Students table schema and data with detailed type information
+    //     Table studentsTable = processor.getTable("Students");
         
-        std::cout << "\n--- Students Table Schema (AFTER FIX) ---\n";
-        for (size_t i = 0; i < studentsTable.getColumnCount(); i++) {
-            std::cout << "Column " << i << ": " << studentsTable.getColumnName(i) 
-                      << " (Type: " << static_cast<int>(studentsTable.getColumnType(i)) << ")" << std::endl;
-        }
+    //     std::cout << "\n--- Students Table Schema (AFTER FIX) ---\n";
+    //     for (size_t i = 0; i < studentsTable.getColumnCount(); i++) {
+    //         std::cout << "Column " << i << ": " << studentsTable.getColumnName(i) 
+    //                   << " (Type: " << static_cast<int>(studentsTable.getColumnType(i)) << ")" << std::endl;
+    //     }
         
-        // Now run a GPA query that should work properly
-        std::cout << "\n--- Testing SELECT Query ---\n";
-        std::cout << "Running query: SELECT * FROM Students WHERE gpa > 3.5" << std::endl;
-        Table result = processor.processQueryAndSave("SELECT * FROM Students WHERE gpa > 3.5", "outputMah.csv");
+    //     // Now run a GPA query that should work properly
+    //     std::cout << "\n--- Testing SELECT Query ---\n";
+    //     std::cout << "Running query: SELECT * FROM Students WHERE gpa > 3.5" << std::endl;
+    //     Table result = processor.processQueryAndSave("SELECT * FROM Students WHERE gpa > 3.5", "outputMah.csv");
         
-        std::cout << "Query result has " << result.getRowCount() << " rows" << std::endl;
+    //     std::cout << "Query result has " << result.getRowCount() << " rows" << std::endl;
         
-        // Print all matching students
-        for (size_t i = 0; i < result.getRowCount(); i++) {
-            std::cout << "Student: " << result.getStringValue(1, i) 
-                      << ", GPA: " << result.getDoubleValue(3, i) << std::endl;
-        }
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Error in CSV test: " << e.what() << std::endl;
-    }
+    //     // Print all matching students
+    //     for (size_t i = 0; i < result.getRowCount(); i++) {
+    //         std::cout << "Student: " << result.getStringValue(1, i) 
+    //                   << ", GPA: " << result.getDoubleValue(3, i) << std::endl;
+    //     }
+    // }
+    // catch (const std::exception &e)
+    // {
+    //     std::cerr << "Error in CSV test: " << e.what() << std::endl;
+    // }
 }
 
 void testDateTimeSupport()
@@ -630,7 +631,7 @@ int main()
     {
         // testSelect();
         // testProject();
-        // testComplexCondition();
+        testComplexCondition();
         // testFilter();
         // testOrderBy();
         // testAggregator();

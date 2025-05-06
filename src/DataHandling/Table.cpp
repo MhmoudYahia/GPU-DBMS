@@ -151,7 +151,47 @@ namespace GPUDBMS
         }
     }
 
-    DataType Column::getType() const
+    ColumnInfoGPU Table::getColumnInfoGPU(const std::string &columnName) const
+    {
+        ColumnInfoGPU colInfo;
+        
+        auto it = m_columnNameToIndex.find(columnName);
+        colInfo.type = m_columns[it->second].getType();
+        colInfo.name = columnName;
+
+        const GPUDBMS::ColumnData &cd = getColumnData(it->second);
+
+        switch (colInfo.type)
+        {
+        case GPUDBMS::DataType::INT:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
+            colInfo.data = col.getData().data();
+            break;
+        }
+        case GPUDBMS::DataType::FLOAT:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
+            colInfo.data = col.getData().data();
+            break;
+        }
+        case GPUDBMS::DataType::DOUBLE:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
+            colInfo.data = col.getData().data();
+            break;
+        }
+            // case GPUDBMS::DataType::BOOL: {
+            //     auto &col = static_cast<const GPUDBMS::ColumnDataImpl<bool>&>(cd);
+            //     colInfo.data = col.getData().data();
+            //     break;
+            // }
+            // Add cases for other data types as needed
+        }
+        return colInfo;
+    }
+
+        DataType Column::getType() const
     {
         return m_type;
     }

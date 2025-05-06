@@ -9,6 +9,9 @@
 #include <iostream>
 #include <chrono>
 
+
+
+
 namespace GPUDBMS
 {
 
@@ -23,8 +26,15 @@ namespace GPUDBMS
         DOUBLE,
         VARCHAR,
         BOOL,
-        DATE,
+        DATETIME,
         STRING // Added STRING type based on usage
+    };
+
+    struct ColumnInfoGPU
+    {
+        DataType type;
+        std::string name;
+        const void *data;
     };
 
     /**
@@ -73,7 +83,7 @@ namespace GPUDBMS
         virtual DataType getType() const = 0;
         virtual std::unique_ptr<ColumnData> clone() const = 0;
         virtual std::unique_ptr<ColumnData> createEmpty() const = 0;
-        virtual void appendFromRow(const ColumnData& source, int rowIndex) = 0;
+        virtual void appendFromRow(const ColumnData &source, int rowIndex) = 0;
     };
 
     /**
@@ -363,8 +373,11 @@ namespace GPUDBMS
          */
         Table getSlicedTable(const std::vector<int> &rowIndices) const;
 
+        ColumnInfoGPU getColumnInfoGPU(const std::string &columnName) const;
+
     private:
-        std::vector<Column> m_columns;
+        std::vector<Column>
+            m_columns;
         std::vector<std::unique_ptr<ColumnData>> m_columnData;
         std::unordered_map<std::string, size_t> m_columnNameToIndex;
     };

@@ -4,17 +4,12 @@
 #include "../../include/DataHandling/Condition.hpp"
 #include "../../include/DataHandling/Table.hpp"
 
-struct ColumnInfoGPU
-{
-    GPUDBMS::DataType type;
-    std::string name;
-    const void *data;
-};
+
 struct ConditionGPU
 {
     GPUDBMS::ComparisonOperator comparisonOp; // The comparison operator (>, <, ==, etc.)
     GPUDBMS::LogicalOperator logicalOp;       // The logical operator with previous condition (AND, OR, etc.)
-    ColumnInfoGPU columnInfo;                 // Column to compare
+    GPUDBMS::ColumnInfoGPU columnInfo;                 // Column to compare
     const void *queryValue;                   // Value to compare against
 };
 
@@ -31,6 +26,8 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, float a, float b);
 __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b);
 
 __device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b);
+
+size_t getTypeSize(GPUDBMS::DataType type);
 
 extern "C" GPUDBMS::Table launchSelectKernel(
     const GPUDBMS::Table &m_inputTable,

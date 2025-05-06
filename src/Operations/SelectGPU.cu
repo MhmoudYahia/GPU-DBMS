@@ -292,35 +292,8 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
             continue;
         }
 
-        // We need to get the actual data pointer based on the column type
-        const GPUDBMS::ColumnData &cd = m_inputTable.getColumnData(columnName);
-        switch (colsType[columnIndex])
-        {
-        case GPUDBMS::DataType::INT:
-        {
-            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
-            condition.columnInfo.data = col.getData().data();
-            break;
-        }
-        case GPUDBMS::DataType::FLOAT:
-        {
-            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
-            condition.columnInfo.data = col.getData().data();
-            break;
-        }
-        case GPUDBMS::DataType::DOUBLE:
-        {
-            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
-            condition.columnInfo.data = col.getData().data();
-            break;
-        }
-            // case GPUDBMS::DataType::BOOL: {
-            //     auto &col = static_cast<const GPUDBMS::ColumnDataImpl<bool>&>(cd);
-            //     condition.columnInfo.data = col.getData().data();
-            //     break;
-            // }
-            // Add cases for other data types as needed
-        }
+        condition.columnInfo=m_inputTable.getColumnInfoGPU(columnName);
+       
 
         conditions.push_back(condition);
     }
