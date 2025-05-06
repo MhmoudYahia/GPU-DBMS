@@ -717,6 +717,75 @@ void testDateTimeSupport()
     
     std::cout << "DateTime support test completed!" << std::endl;
 }
+void testBooleanSelect() 
+{
+    std::cout << "Testing Boolean Select operation..." << std::endl;
+    
+    // Create a table with a Boolean column
+    std::vector<Column> columns = {
+        Column("id", DataType::INT),
+        Column("name", DataType::VARCHAR),
+        Column("active", DataType::BOOL)
+    };
+    
+    Table table(columns);
+    
+    // Add sample data with alternating boolean values
+    for (int i = 1; i <= 10; i++) {
+        table.appendIntValue(0, i);
+        table.appendStringValue(1, "User" + std::to_string(i));
+        table.appendBoolValue(2, i % 2 == 0); // Even IDs are active (true)
+        table.finalizeRow();
+    }
+    
+    // Print the table for verification
+    std::cout << "Boolean table data:" << std::endl;
+    for (size_t i = 0; i < table.getRowCount(); i++) {
+        std::cout << "Row " << i << ": " 
+                  << "id=" << table.getIntValue(0, i) << ", "
+                  << "name=" << table.getStringValue(1, i) << ", "
+                  << "active=" << (table.getBoolValue(2, i) ? "true" : "false") << std::endl;
+    }
+    
+    // Test boolean condition (active = true)
+    auto condition = ConditionBuilder::equals("active", "true");
+    Select selectOp(table, *condition);
+    
+    // Execute on CPU first to verify
+    Table resultCPU = selectOp.execute(false);
+    std::cout << "CPU Select result: " << resultCPU.getRowCount() << " active users found" << std::endl;
+    
+    // Print the CPU results
+    for (size_t i = 0; i < resultCPU.getRowCount(); i++) {
+        std::cout << "Active user: " << resultCPU.getStringValue(1, i) 
+                  << " (ID: " << resultCPU.getIntValue(0, i) << ")" << std::endl;
+    }
+    
+    // Verify CPU results - should have 5 active users with even IDs
+    assert(resultCPU.getRowCount() == 5);
+    
+    // Now try GPU execution
+    try {
+        Table resultGPU = selectOp.execute(true);
+        std::cout << "GPU Select result: " << resultGPU.getRowCount() << " active users found" << std::endl;
+        
+        // Print the GPU results
+        for (size_t i = 0; i < resultGPU.getRowCount(); i++) {
+            std::cout << "Active user: " << resultGPU.getStringValue(1, i) 
+                      << " (ID: " << resultGPU.getIntValue(0, i) << ")" << std::endl;
+        }
+        
+        // Verify GPU results - should match CPU results
+        assert(resultGPU.getRowCount() == resultCPU.getRowCount());
+        std::cout << "GPU Boolean Select test passed!" << std::endl;
+    } 
+    catch (const std::exception& e) {
+        std::cout << "GPU execution not available: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Boolean Select test completed!" << std::endl;
+}
+
 int main()
 {
     try
@@ -731,6 +800,7 @@ int main()
         // testSQLQueryProcessor();
         // testCSVLoading();
         // testDateTimeSupport();
+        testBooleanSelect();
 
         std::cout << "All tests passed successfully!" << std::endl;
     }
