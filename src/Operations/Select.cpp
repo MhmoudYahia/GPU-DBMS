@@ -72,6 +72,14 @@ namespace GPUDBMS
                     rowData[col] = m_inputTable.getBoolValue(col, row) ? "true" : "false";
                     break;
 
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    // Fix: Make sure to get string value for date/datetime
+                    rowData[col] = m_inputTable.getStringValue(col, row);
+                    // Debug log to verify we're getting the correct data
+                     std::cout << "Row: " << row << ", Column: " << col << ", Value: " << rowData[col] << std::endl;
+                    break;  
+
                 default:
                     rowData[col] = ""; // Default for unsupported types
                 }

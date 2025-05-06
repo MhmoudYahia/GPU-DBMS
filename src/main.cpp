@@ -653,7 +653,7 @@ int main()
         // testAggregator();
         // testJoin();
         // testSQLQueryProcessor();
-        // testCSVLoading();
+        testCSVLoading();
         // testDateTimeSupport();
 
         std::cout << "All tests passed successfully!" << std::endl;

@@ -1,5 +1,6 @@
 #include "../../include/DataHandling/Table.hpp"
 #include <algorithm>
+#include <regex>
 
 namespace GPUDBMS
 {
@@ -227,7 +228,6 @@ namespace GPUDBMS
         return DataType::BOOL;
     }
 
-
     // Table implementation
     Table::Table() {}
 
@@ -313,6 +313,11 @@ namespace GPUDBMS
         case DataType::BOOL:
             m_columnData.push_back(std::make_unique<ColumnDataImpl<bool>>());
             break;
+
+        case DataType::DATE:
+        case DataType::DATETIME: // Add datetime support using string storage
+            m_columnData.push_back(std::make_unique<ColumnDataImpl<std::string>>());
+            break;
         default:
             throw std::runtime_error("Unsupported data type for column: " + name);
         }
@@ -394,12 +399,53 @@ namespace GPUDBMS
         return *m_columnData[columnIndex];
     }
 
-    DataType Table::getColumnType(const std::string& columnName) const {
+    DataType Table::getColumnType(const std::string &columnName) const
+    {
         int index = getColumnIndex(columnName);
-        if (index == -1) {
+        if (index == -1)
+        {
             throw std::runtime_error("Column not found: " + columnName);
         }
         return m_columns[index].getType();
+    }
+
+    // Add a method to get DateTime value (essentially the same as getString but with validation)
+    std::string Table::getDateTimeValue(size_t columnIndex, size_t rowIndex) const
+    {
+        const ColumnData &column = getColumnData(columnIndex);
+        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE)
+        {
+            throw std::runtime_error("Column is not of type DATETIME or DATE");
+        }
+        const auto &typedColumn = static_cast<const ColumnDataImpl<std::string> &>(column);
+        return typedColumn.getValue(rowIndex);
+    }
+
+    // Add a method to append DateTime values
+    void Table::appendDateTimeValue(size_t columnIndex, const std::string &value)
+    {
+        ColumnData &column = getColumnData(columnIndex);
+        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE)
+        {
+            throw std::runtime_error("Column is not of type DATETIME or DATE");
+        }
+
+        // Validate datetime format (optional but recommended)
+        if (!isValidDateTime(value))
+        {
+            throw std::runtime_error("Invalid DateTime format. Expected yyyy-MM-dd HH:mm:ss but got: " + value);
+        }
+
+        auto &typedColumn = static_cast<ColumnDataImpl<std::string> &>(column);
+        typedColumn.append(value);
+    }
+
+    // Helper method to validate DateTime format
+    bool Table::isValidDateTime(const std::string &dateTime)
+    {
+        // Basic validation for yyyy-MM-dd HH:mm:ss format
+        std::regex dateTimePattern("^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$");
+        return std::regex_match(dateTime, dateTimePattern);
     }
 
     ColumnData &Table::getColumnData(const std::string &columnName)

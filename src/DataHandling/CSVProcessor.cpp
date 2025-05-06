@@ -19,15 +19,8 @@ namespace GPUDBMS
         std::filesystem::create_directories(dataDirectory + "/outputs/txt");
     }
 
-    StorageManager::~StorageManager()
-    {
-        // Save all modified tables before destruction
-        for (const auto &[tableName, table] : m_tables)
-        {
-            // This could be optimized to only save modified tables
-            saveTableToCSV(tableName, table);
-        }
-    }
+StorageManager::~StorageManager() {
+}
 
     Table CSVProcessor::readCSV(const std::string &filePath)
     {
@@ -143,6 +136,10 @@ namespace GPUDBMS
                     // Format date values properly
                     file << "\"" << table.getStringValue(col, row) << "\"";
                     break;
+                case DataType::DATETIME:
+                    // Add proper DateTime formatting - using quotes to preserve the format
+                    file << "\"" << escapeCSVString(table.getStringValue(col, row)) << "\"";
+                    break;
                 default:
                     file << "NULL";
                 }
@@ -226,39 +223,32 @@ namespace GPUDBMS
         return annotations;
     }
 
-    DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string> &annotations)
-    {
-        // Default to VARCHAR if no annotations
-        if (annotations.empty())
-        {
-            return DataType::VARCHAR;
-        }
-
-        // Check for type annotations
-        for (const auto &annotation : annotations)
-        {
-            if (annotation == "N")
-            {
-                // Could be INT or DOUBLE - choose INT as default
-                return DataType::INT;
-            }
-            else if (annotation == "T")
-            {
-                return DataType::VARCHAR;
-            }
-            else if (annotation == "D")
-            {
-                return DataType::DATETIME;
-            }
-            else if (annotation == "B")
-            {
-                return DataType::BOOL;
-            }
-        }
-
-        // Default to VARCHAR
+DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& annotations) {
+    // Default to VARCHAR if no annotations
+    if (annotations.empty()) {
         return DataType::VARCHAR;
     }
+    
+    // Check for type annotations
+    for (const auto& annotation : annotations) {
+        if (annotation == "N") {
+            // Could be INT or DOUBLE - choose INT as default
+            return DataType::DOUBLE;
+        }
+        else if (annotation == "T") {
+            return DataType::VARCHAR;
+        }
+        else if (annotation == "B") {
+            return DataType::BOOL;
+        }
+        else if (annotation == "D") {
+            return DataType::DATETIME; // New annotation for DateTime
+        }
+    }
+    
+    // Default to VARCHAR
+    return DataType::VARCHAR;
+}
 
     std::vector<std::string> CSVProcessor::splitCSVLine(const std::string &line)
     {
@@ -333,15 +323,16 @@ namespace GPUDBMS
                 case DataType::DATETIME:
                     table.appendStringValue(col, ""); // Store dates as strings
                     break;
-                }
-                continue;
+                case DataType::DATETIME:
+                    table.appendStringValue(col, ""); // Empty datetime
+                    break;    
             }
-
-            // Otherwise, parse the value according to column type
-            try
-            {
-                switch (column.getType())
-                {
+            continue;
+        }
+        
+        // Otherwise, parse the value according to column type
+        try {
+            switch (column.getType()) {
                 case DataType::INT:
                     table.appendIntValue(col, std::stoi(value));
                     break;
@@ -349,7 +340,12 @@ namespace GPUDBMS
                     table.appendFloatValue(col, std::stof(value));
                     break;
                 case DataType::DOUBLE:
-                    table.appendDoubleValue(col, std::stod(value));
+                    if (value.find('.') != std::string::npos) {
+                        table.appendDoubleValue(col, std::stod(value));
+                    } else {
+                        // Integer value in a DOUBLE column
+                        table.appendDoubleValue(col, static_cast<double>(std::stoi(value)));
+                    }
                     break;
                 case DataType::VARCHAR:
                 case DataType::STRING:
@@ -362,18 +358,25 @@ namespace GPUDBMS
                     // Store dates as strings for now
                     table.appendStringValue(col, value);
                     break;
-                }
+                case DataType::DATETIME:
+                    // For DateTime, validate the format before adding
+                    if (Table::isValidDateTime(value)) {
+                        table.appendStringValue(col, value);
+                    } else {
+                        // Try to convert to proper format if possible
+                        // For now, store as-is
+                        table.appendStringValue(col, value);
+                    }
+                    break;
             }
-            catch (const std::exception &e)
-            {
-                // If conversion fails, use a default value
-                std::cerr << "Warning: Failed to convert value '" << value
-                          << "' to type " << static_cast<int>(column.getType())
-                          << " for column " << column.getName() << ": " << e.what() << std::endl;
-
-                // Add a default value
-                switch (column.getType())
-                {
+        } catch (const std::exception& e) {
+            // If conversion fails, use a default value
+            std::cerr << "Warning: Failed to convert value '" << value 
+                      << "' to type " << static_cast<int>(column.getType()) 
+                      << " for column " << column.getName() << ": " << e.what() << std::endl;
+            
+            // Add a default value
+            switch (column.getType()) {
                 case DataType::INT:
                     table.appendIntValue(col, 0);
                     break;

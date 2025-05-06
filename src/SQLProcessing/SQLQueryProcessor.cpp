@@ -10,6 +10,7 @@
 #include "../../include/Operations/Join.hpp"
 #include "../../include/Operations/OrderBy.hpp"
 #include "../../include/Operations/Aggregator.hpp"
+#include "../../include/DataHandling/CSVProcessor.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -54,6 +55,23 @@ namespace GPUDBMS
         storageManager->saveTableToCSV(tableName, table);
     }
 
+    void SQLQueryProcessor::saveQueryResultToCSV(const Table& resultTable, const std::string& filename) {
+        if (!storageManager) {
+            throw std::runtime_error("StorageManager not initialized - cannot save query result");
+        }
+        
+        CSVProcessor csvProcessor;
+        std::string outputPath = storageManager->getDataDirectory() + "/outputs/csv/" + filename + ".csv";
+        csvProcessor.writeCSV(resultTable, outputPath);
+        std::cout << "Saved query result to " << outputPath << std::endl;
+    }
+    
+    // Process query and save the result in one step
+    Table SQLQueryProcessor::processQueryAndSave(const std::string& query, const std::string& outputFilename) {
+        Table result = processQuery(query);
+        saveQueryResultToCSV(result, outputFilename);
+        return result;
+    }
     // Add tables to the processor
     void SQLQueryProcessor::registerTable(const std::string &name, const Table &table)
     {
@@ -525,6 +543,20 @@ namespace GPUDBMS
         {
         case hsql::kExprOperator:
         {
+            if (expr->expr2->type == hsql::kExprLiteralString) {
+                std::string value = expr->expr2->name;
+                
+                // If this looks like a DateTime value, strip quotes
+                if (value.length() >= 2 && (value[0] == '\'' || value[0] == '"') && 
+                    (value[value.length()-1] == '\'' || value[value.length()-1] == '"')) {
+                    value = value.substr(1, value.length() - 2);
+                }
+                
+                // Create the condition
+                switch (expr->opType) {
+                    // Handle operators using value as a DateTime literal
+                }
+            }
             // Handle binary operators
             if (expr->expr && expr->expr2)
             {

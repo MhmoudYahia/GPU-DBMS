@@ -28,6 +28,11 @@ public:
 
     // Load all tables from data directory
     void loadAllTables();
+
+        // Get the data directory
+        const std::string& getDataDirectory() const {
+            return m_dataDirectory;
+        }
     
     // Load a specific table
     Table loadTableFromCSV(const std::string& tableName);

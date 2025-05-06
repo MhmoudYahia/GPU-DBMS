@@ -26,8 +26,9 @@ namespace GPUDBMS
         DOUBLE,
         VARCHAR,
         BOOL,
-        DATETIME,
-        STRING // Added STRING type based on usage
+        DATE,
+        STRING,   // Added STRING type based on usage
+        DATETIME, // New type for yyyy-MM-dd HH:mm:ss format
     };
 
     struct ColumnInfoGPU
@@ -184,6 +185,31 @@ namespace GPUDBMS
          * @brief Move assignment operator
          */
         Table &operator=(Table &&other) noexcept;
+
+        /**
+         * @brief Get a datetime value from the table
+         *
+         * @param columnIndex The column index
+         * @param rowIndex The row index
+         * @return std::string The datetime value at the specified position
+         */
+        std::string getDateTimeValue(size_t columnIndex, size_t rowIndex) const;
+
+        /**
+         * @brief Append a datetime value to a column
+         *
+         * @param columnIndex The column index
+         * @param value The datetime value to append
+         */
+        void appendDateTimeValue(size_t columnIndex, const std::string &value);
+
+        /**
+         * @brief Validate a datetime string format
+         *
+         * @param dateTime The datetime string to validate
+         * @return bool True if the string is a valid datetime format
+         */
+        static bool isValidDateTime(const std::string &dateTime);
 
         /**
          * @brief Add a new column to the table

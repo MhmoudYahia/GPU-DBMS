@@ -102,6 +102,8 @@ namespace GPUDBMS
                 return std::stoi(cellValue) == std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) == std::stof(m_value);
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) == 0;
             else
                 return cellValue == m_value;
         case ComparisonOperator::NOT_EQUAL:
@@ -109,6 +111,8 @@ namespace GPUDBMS
                 return std::stoi(cellValue) != std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) != std::stof(m_value);
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) != 0;
             else
                 return cellValue != m_value;
         case ComparisonOperator::LESS_THAN:
@@ -116,6 +120,8 @@ namespace GPUDBMS
                 return std::stoi(cellValue) < std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) < std::stof(m_value);
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) < 0;
             else
                 return cellValue < m_value;
         case ComparisonOperator::LESS_EQUAL:
@@ -123,6 +129,9 @@ namespace GPUDBMS
                 return std::stoi(cellValue) <= std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) <= std::stof(m_value);
+
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) <= 0;
             else
                 return cellValue <= m_value;
         case ComparisonOperator::GREATER_THAN:
@@ -130,6 +139,9 @@ namespace GPUDBMS
                 return std::stoi(cellValue) > std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) > std::stof(m_value);
+
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) > 0;
             else
                 return cellValue > m_value;
         case ComparisonOperator::GREATER_EQUAL:
@@ -137,6 +149,8 @@ namespace GPUDBMS
                 return std::stoi(cellValue) >= std::stoi(m_value);
             else if (colType == DataType::FLOAT || colType == DataType::DOUBLE)
                 return std::stof(cellValue) >= std::stof(m_value);
+            else if (colType == DataType::DATETIME || colType == DataType::DATE)
+                return compareDateTime(cellValue, m_value) >= 0;
             else
                 return cellValue >= m_value;
         case ComparisonOperator::LIKE:
@@ -167,6 +181,24 @@ namespace GPUDBMS
         }
     }
 
+    // Add this helper method to ComparisonCondition class
+    int ComparisonCondition::compareDateTime(const std::string &dateTime1, const std::string &dateTime2) const
+    {
+        // Since this is dealing with string values, let's add some logging
+        std::cout << "Comparing dates: '" << dateTime1 << "' with '" << dateTime2 << "'" << std::endl;
+
+        // If either is empty, handle that case
+        if (dateTime1.empty() || dateTime2.empty())
+        {
+            return dateTime1.empty() ? -1 : 1;
+        }
+
+        // Basic string comparison should work for ISO format (YYYY-MM-DD HH:MM:SS)
+        // because lexicographic string comparison works for this format
+        int result = dateTime1.compare(dateTime2);
+        std::cout << "Comparison result: " << result << std::endl;
+        return result;
+    }
     // bool *ComparisonCondition::evaluateGPU(
     //     const std::vector<DataType> &colsType,
     //     const std::vector<std::string> &row,
