@@ -1,6 +1,5 @@
 #include "../../include/Operations/OrderByGPU.cuh"
 
-
 __global__ void generateSortKeysKernel(
     int numRows,
     const GPUDBMS::ColumnInfoGPU *sortColumns,
@@ -52,7 +51,7 @@ void sortRows(
     uint64_t *keys,
     uint32_t *indices,
     int numRows,
-    cudaStream_t stream = 0)
+    cudaStream_t stream)
 {
     // Use CUB or Thrust to sort keys and produce indices
     // Example with Thrust:
@@ -97,7 +96,7 @@ __global__ void reorderDataKernel(
 extern "C" GPUDBMS::Table launchOrderByKernel(
     const GPUDBMS::Table &inputTable,
     const std::vector<std::string> &sortColumns,
-    const std::vector<SortOrder> &sortDirections) // true=asc, false=desc
+    const std::vector<SortOrder> &sortDirections)
 {
     const size_t rowCount = inputTable.getRowCount();
     const size_t numSortColumns = sortColumns.size();

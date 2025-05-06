@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include "../../include/DataHandling/Condition.hpp"
 #include "../../include/DataHandling/Table.hpp"
+#include "../../include/Utilities/GPU.cuh"
 
 
 struct ConditionGPU

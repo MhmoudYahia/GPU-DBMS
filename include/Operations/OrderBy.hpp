@@ -4,18 +4,11 @@
 #include <vector>
 #include <string>
 #include "../DataHandling/Table.hpp"
+#include "../Operations/OrderByGPU.cuh"
 
 namespace GPUDBMS
 {
-    /**
-     * @enum SortOrder
-     * @brief Specifies the order for sorting (ascending or descending)
-     */
-    enum class SortOrder
-    {
-        ASC,
-        DESC
-    };
+   
 
     /**
      * @class OrderBy
@@ -51,7 +44,7 @@ namespace GPUDBMS
          * 
          * @return Table The sorted result table
          */
-        Table execute();
+        Table execute(bool useGPU = false);
 
         /**
          * @brief Execute the order by operation on CPU (fallback)
@@ -59,6 +52,8 @@ namespace GPUDBMS
          * @return Table The sorted result table
          */
         Table executeCPU();
+
+        Table executeGPU();
 
     private:
         const Table &m_inputTable;

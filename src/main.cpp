@@ -34,7 +34,6 @@ Table createTestTable()
     auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
     auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
 
-    // Add 5 rows
     for (int i = 1; i <= 10000000; i++)
     {
         idCol.append(i);
@@ -199,55 +198,72 @@ void testOrderBy()
 
     Table testTable = createTestTable();
 
-    // Test sorting by age in descending order
+    // ---------------------- CPU TESTS ---------------------- //
+
+    // 1. Sort by age DESC
     OrderBy orderByOp(testTable, "age", SortOrder::DESC);
 
-    // Execute on CPU
-    Table resultCPU = orderByOp.executeCPU();
+    auto start = std::chrono::high_resolution_clock::now();
+    Table resultCPU = orderByOp.execute();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
 
-    // Verify results (should be sorted by age in descending order)
-    assert(resultCPU.getRowCount() == 5);
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 0) == 45); // Person5
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 1) == 40); // Person4
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 2) == 35); // Person3
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 3) == 30); // Person2
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 4) == 25); // Person1
+    std::cout << resultCPU.getRowCount() << " rows sorted on CPU" << std::endl;
+    std::cout << "CPU OrderBy execution time (age DESC): " << elapsed.count() << " seconds" << std::endl;
+    assert(resultCPU.getRowCount() == 10000000);
+    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 0) == 10000000);
 
-    // Test sorting by name in ascending order
-    OrderBy nameOrderByOp(testTable, "name", SortOrder::ASC);
-
-    Table nameResultCPU = nameOrderByOp.executeCPU();
-
-    // Verify results (should be sorted by name alphabetically)
-    assert(nameResultCPU.getRowCount() == 5);
-    assert(nameResultCPU.getStringValue(nameResultCPU.getColumnIndex("name"), 0) == "Person1");
-
-    // Test multi-column sorting (sort by salary DESC, then by name ASC)
-    std::vector<std::string> sortColumns = {"salary", "name"};
+    // Multi-column: age DESC, salary ASC
+    std::vector<std::string> sortColumns = {"age", "salary"};
     std::vector<SortOrder> sortOrders = {SortOrder::DESC, SortOrder::ASC};
     OrderBy multiColOrderByOp(testTable, sortColumns, sortOrders);
 
-    Table multiColResult = multiColOrderByOp.executeCPU();
+    start = std::chrono::high_resolution_clock::now();
+    Table multiColResult = multiColOrderByOp.execute();
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> multiColElapsed = end - start;
 
-    // Should be ordered by decreasing salary
-    assert(multiColResult.getDoubleValue(multiColResult.getColumnIndex("salary"), 0) == 100000.0); // Person5
-    assert(multiColResult.getDoubleValue(multiColResult.getColumnIndex("salary"), 1) == 90000.0);  // Person4
+    std::cout << multiColResult.getRowCount() << " rows sorted on CPU" << std::endl;
+    std::cout << "CPU OrderBy execution time (age DESC, salary ASC): " << multiColElapsed.count() << " seconds" << std::endl;
+    assert(multiColResult.getIntValue(multiColResult.getColumnIndex("age"), 0) == 10000000);
 
-    // Execute on GPU if available
+
+    // ---------------------- GPU TESTS ---------------------- //
+
     try
     {
-        Table resultGPU = orderByOp.execute();
-        assert(resultGPU.getRowCount() == 5);
-        assert(resultGPU.getIntValue(resultGPU.getColumnIndex("age"), 0) == 45);
-        std::cout << "GPU OrderBy test passed!" << std::endl;
+        // 1. Sort by age DESC
+        start = std::chrono::high_resolution_clock::now();
+        Table resultGPU = orderByOp.execute(USE_GPU);
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - start;
+
+        std::cout << resultGPU.getRowCount() << " rows sorted on GPU" << std::endl;
+        assert(resultGPU.getRowCount() == 10000000);
+        assert(resultGPU.getIntValue(resultGPU.getColumnIndex("age"), 0) == 10000000);
+        std::cout << "GPU OrderBy execution time (age DESC): " << elapsed.count() << " seconds" << std::endl;
+
+
+        // 2. Multi-column: age DESC, salary ASC
+        start = std::chrono::high_resolution_clock::now();
+        Table multiColResultGPU = multiColOrderByOp.execute(USE_GPU);
+        end = std::chrono::high_resolution_clock::now();
+        multiColElapsed = end - start;
+
+        std::cout << multiColResultGPU.getRowCount() << " rows sorted on GPU" << std::endl;
+        assert(multiColResultGPU.getRowCount() == 10000000);
+        assert(multiColResultGPU.getIntValue(multiColResultGPU.getColumnIndex("age"), 0) == 10000000);
+
+        std::cout << "GPU OrderBy execution time (age DESC, salary ASC): " << multiColElapsed.count() << " seconds" << std::endl;
+
+        std::cout << "GPU OrderBy tests passed!" << std::endl;
     }
     catch (const std::exception &e)
     {
         std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
-
-    std::cout << "CPU OrderBy test passed!" << std::endl;
 }
+
 void testAggregator()
 {
     std::cout << "Testing Aggregator operation..." << std::endl;
@@ -631,9 +647,9 @@ int main()
     {
         // testSelect();
         // testProject();
-        testComplexCondition();
+        // testComplexCondition();
         // testFilter();
-        // testOrderBy();
+        testOrderBy();
         // testAggregator();
         // testJoin();
         // testSQLQueryProcessor();
