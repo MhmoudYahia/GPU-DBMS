@@ -42,6 +42,13 @@ namespace GPUDBMS
         // Save a table to CSV
         void saveTableToCSV(const std::string &tableName, const Table &table);
 
+    // Save query result to CSV file with a specific filename
+    void saveQueryResultToCSV(const Table& resultTable, const std::string& filename);
+    
+    // Process query and save the result in one step
+    Table processQueryAndSave(const std::string& query, const std::string& outputFilename);
+    
+
     private:
         // Tables in memory - in a real implementation, you'd have a proper catalog
         std::unordered_map<std::string, Table> tables;

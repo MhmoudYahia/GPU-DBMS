@@ -19,11 +19,6 @@ StorageManager::StorageManager(const std::string& dataDirectory)
 }
 
 StorageManager::~StorageManager() {
-    // Save all modified tables before destruction
-    for (const auto& [tableName, table] : m_tables) {
-        // This could be optimized to only save modified tables
-        saveTableToCSV(tableName, table);
-    }
 }
 
 Table CSVProcessor::readCSV(const std::string& filePath) {
@@ -120,6 +115,10 @@ void CSVProcessor::writeCSV(const Table& table, const std::string& filePath, boo
                     // Format date values properly
                     file << "\"" << table.getStringValue(col, row) << "\"";
                     break;
+                case DataType::DATETIME:
+                    // Add proper DateTime formatting - using quotes to preserve the format
+                    file << "\"" << escapeCSVString(table.getStringValue(col, row)) << "\"";
+                    break;
                 default:
                     file << "NULL";
             }
@@ -204,16 +203,16 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
     for (const auto& annotation : annotations) {
         if (annotation == "N") {
             // Could be INT or DOUBLE - choose INT as default
-            return DataType::INT;
+            return DataType::DOUBLE;
         }
         else if (annotation == "T") {
             return DataType::VARCHAR;
         }
-        else if (annotation == "D") {
-            return DataType::DATE;
-        }
         else if (annotation == "B") {
             return DataType::BOOL;
+        }
+        else if (annotation == "D") {
+            return DataType::DATETIME; // New annotation for DateTime
         }
     }
     
@@ -280,6 +279,9 @@ void CSVProcessor::addRowToTable(Table& table, const std::vector<std::string>& v
                 case DataType::DATE:
                     table.appendStringValue(col, ""); // Store dates as strings
                     break;
+                case DataType::DATETIME:
+                    table.appendStringValue(col, ""); // Empty datetime
+                    break;    
             }
             continue;
         }
@@ -294,7 +296,12 @@ void CSVProcessor::addRowToTable(Table& table, const std::vector<std::string>& v
                     table.appendFloatValue(col, std::stof(value));
                     break;
                 case DataType::DOUBLE:
-                    table.appendDoubleValue(col, std::stod(value));
+                    if (value.find('.') != std::string::npos) {
+                        table.appendDoubleValue(col, std::stod(value));
+                    } else {
+                        // Integer value in a DOUBLE column
+                        table.appendDoubleValue(col, static_cast<double>(std::stoi(value)));
+                    }
                     break;
                 case DataType::VARCHAR:
                 case DataType::STRING:
@@ -306,6 +313,16 @@ void CSVProcessor::addRowToTable(Table& table, const std::vector<std::string>& v
                 case DataType::DATE:
                     // Store dates as strings for now
                     table.appendStringValue(col, value);
+                    break;
+                case DataType::DATETIME:
+                    // For DateTime, validate the format before adding
+                    if (Table::isValidDateTime(value)) {
+                        table.appendStringValue(col, value);
+                    } else {
+                        // Try to convert to proper format if possible
+                        // For now, store as-is
+                        table.appendStringValue(col, value);
+                    }
                     break;
             }
         } catch (const std::exception& e) {
@@ -367,7 +384,7 @@ std::string CSVProcessor::formatHeaderWithTypeAnnotations(const std::string& col
         case DataType::BOOL:
             header += " (B)";
             break;
-        case DataType::DATE:
+        case DataType::DATETIME:
             header += " (D)";
             break;
         default:

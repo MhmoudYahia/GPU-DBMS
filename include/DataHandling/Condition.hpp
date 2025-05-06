@@ -53,7 +53,6 @@ namespace GPUDBMS
         Condition(Condition &&other) noexcept;            // Move constructor
         Condition &operator=(Condition &&other) noexcept; // Move assignment operator
         Condition &operator=(const Condition &other);     // Copy assignment operator
-
         /**
          * @brief Evaluate the condition for a given row
          *
@@ -63,7 +62,6 @@ namespace GPUDBMS
          */
         virtual bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
         // virtual bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
-
         /**
          * @brief Get the CUDA compatible condition string for GPU execution
          *
@@ -106,6 +104,7 @@ namespace GPUDBMS
         std::string getCUDACondition() const override;
         std::unique_ptr<Condition> clone() const override;
 
+        int compareDateTime(const std::string &dateTime1, const std::string &dateTime2) const;
         /**
          * @brief Get the column name involved in this condition
          *
