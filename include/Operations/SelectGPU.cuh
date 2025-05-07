@@ -1,6 +1,8 @@
 #ifndef SELECT_GPU_CUH
 #define SELECT_GPU_CUH
 #include <cuda_runtime.h>
+#include <cstring> // for strlen
+
 #include "../../include/DataHandling/Condition.hpp"
 #include "../../include/DataHandling/Table.hpp"
 #include "../../include/Utilities/GPU.cuh"

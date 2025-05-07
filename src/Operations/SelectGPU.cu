@@ -49,6 +49,23 @@ __global__ void selectKernel(
             currentResult = compare(cond.comparisonOp, col[row], query);
             break;
         }
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+        {
+            const char **col = static_cast<const char **>(cond.columnInfo.data);
+            const char *query = static_cast<const char *>(cond.queryValue);
+
+            if (row >= cond.columnInfo.count || col[row] == nullptr || query == nullptr)
+            {
+                currentResult = false;
+            }
+            else
+            {
+                currentResult = compareString(cond.comparisonOp, col[row], query);
+            }
+
+            break;
+        }
             // Add string cases if needed
         }
 
@@ -81,6 +98,11 @@ __global__ void selectKernel(
         if (finalResult && cond.logicalOp == GPUDBMS::LogicalOperator::OR)
         {
             // If we have a true result with OR, we can exit early
+            break;
+        }
+        else if (!finalResult && cond.logicalOp == GPUDBMS::LogicalOperator::AND)
+        {
+            // If we have a false result with AND, we can exit early
             break;
         }
     }
@@ -272,19 +294,22 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
         case GPUDBMS::DataType::INT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
-            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
+            condition.columnInfo.data = const_cast<void *>(static_cast<const void *>(col.getData().data()));
+            condition.columnInfo.count = col.getData().size();
             break;
         }
         case GPUDBMS::DataType::FLOAT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
-            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
+            condition.columnInfo.data = const_cast<void *>(static_cast<const void *>(col.getData().data()));
+            condition.columnInfo.count = col.getData().size();
             break;
         }
         case GPUDBMS::DataType::DOUBLE:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
-            condition.columnInfo.data = const_cast<void*>(static_cast<const void*>(col.getData().data()));
+            condition.columnInfo.data = const_cast<void *>(static_cast<const void *>(col.getData().data()));
+            condition.columnInfo.count = col.getData().size();
             break;
         }
         case GPUDBMS::DataType::BOOL:
@@ -303,7 +328,27 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
 
             // We'll use this temporary host array later to copy to device
             condition.columnInfo.data = h_boolArray;
+            condition.columnInfo.count = col.getData().size();
 
+            break;
+        }
+        case GPUDBMS::DataType::VARCHAR:
+        case GPUDBMS::DataType::STRING:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<std::string> &>(cd);
+            const std::vector<std::string> &strVec = col.getData();
+
+            // Create a host array of strings
+            char **h_strArray = new char *[strVec.size()];
+            for (size_t i = 0; i < strVec.size(); i++)
+            {
+                h_strArray[i] = new char[256]; // Allocate memory for each string
+                strncpy(h_strArray[i], strVec[i].c_str(), 255);
+                h_strArray[i][255] = '\0'; // Null-terminate the string
+            }
+
+            condition.columnInfo.data = h_strArray;
+            condition.columnInfo.count = strVec.size();
             break;
         }
             // Add cases for other data types as needed
@@ -406,28 +451,103 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     // Allocate memory for each condition's data and query value
     for (size_t i = 0; i < conditions.size(); i++)
     {
-        // Allocate and copy column data
-        void *d_columnData = nullptr;
-        size_t dataSize = getTypeSize(conditions[i].columnInfo.type) * rowCount;
-        cudaMalloc(&d_columnData, dataSize);
-        cudaMemcpy(d_columnData, conditions[i].columnInfo.data, dataSize, cudaMemcpyHostToDevice);
+        // 1. Flatten all strings into a big buffer
+        std::vector<size_t> offsets(rowCount);
+        size_t totalBytes = 0;
 
-        // Store the original host pointer to free it later if it's a bool array
-        // void *original_host_ptr = conditions[i].columnInfo.data;
+        const char **h_colData = static_cast<const char **>(conditions[i].columnInfo.data);
 
-        device_conditions[i].columnInfo.data = d_columnData;
+        // Calculate total size and offsets
+        const size_t MAX_STRING_LENGTH = 1024 * 1024; // 1MB max
 
-        // Clean up the temporary host array if it's a bool column
-        // if (conditions[i].columnInfo.type == GPUDBMS::DataType::BOOL) {
-        //     delete[] static_cast<bool*>(original_host_ptr);
-        // }
+        for (int row = 0; row < rowCount; row++)
+        {
+            offsets[row] = SIZE_MAX;
 
-        // Allocate and copy query value
-        void *d_queryValue = nullptr;
-        size_t valueSize = getTypeSize(conditions[i].columnInfo.type);
-        cudaMalloc(&d_queryValue, valueSize);
-        cudaMemcpy(d_queryValue, conditions[i].queryValue, valueSize, cudaMemcpyHostToDevice);
-        device_conditions[i].queryValue = d_queryValue;
+            if (h_colData == nullptr || h_colData[row] == nullptr)
+            {
+                continue;
+            }
+
+            // Try standard strlen first (faster for valid strings)
+            size_t len = strlen(h_colData[row]);
+
+            // Fallback to manual check if strlen crashes
+            if (len > MAX_STRING_LENGTH)
+            {
+                len = 0;
+                while (len < MAX_STRING_LENGTH && h_colData[row][len] != '\0')
+                {
+                    len++;
+                }
+                if (len >= MAX_STRING_LENGTH)
+                {
+                    continue; // skip invalid string
+                }
+            }
+
+            offsets[row] = totalBytes;
+            totalBytes += len + 1;
+        }
+
+        // Allocate and fill big buffer on host
+        char *flatBuffer = new char[totalBytes];
+        char **h_devicePointers = new char *[rowCount];
+
+        size_t cursor = 0;
+        for (int row = 0; row < rowCount; row++)
+        {
+            if (offsets[row] != SIZE_MAX)
+            {
+                size_t len = strlen(h_colData[row]) + 1;
+                memcpy(&flatBuffer[cursor], h_colData[row], len);
+                h_devicePointers[row] = &flatBuffer[cursor];
+                cursor += len;
+            }
+            else
+            {
+                h_devicePointers[row] = nullptr;
+            }
+        }
+
+        // 2. Copy flat buffer to device
+        char *d_flatBuffer = nullptr;
+        cudaMalloc(&d_flatBuffer, totalBytes);
+        cudaMemcpy(d_flatBuffer, flatBuffer, totalBytes, cudaMemcpyHostToDevice);
+
+        // 3. Adjust device pointers to point into flat buffer
+        for (int row = 0; row < rowCount; row++)
+        {
+            if (h_devicePointers[row])
+                h_devicePointers[row] = d_flatBuffer + (h_devicePointers[row] - flatBuffer); // device offset
+        }
+
+        // 4. Copy pointer array to device
+        char **d_pointerArray = nullptr;
+        cudaMalloc(&d_pointerArray, sizeof(char *) * rowCount);
+        cudaMemcpy(d_pointerArray, h_devicePointers, sizeof(char *) * rowCount, cudaMemcpyHostToDevice);
+
+        // Done!
+        device_conditions[i].columnInfo.data = d_pointerArray;
+
+        // 5. Copy query string as usual
+        const char *h_query = static_cast<const char *>(conditions[i].queryValue);
+        if (h_query != nullptr)
+        {
+            size_t len = strlen(h_query) + 1;
+            char *d_query;
+            cudaMalloc(&d_query, len);
+            cudaMemcpy(d_query, h_query, len, cudaMemcpyHostToDevice);
+            device_conditions[i].queryValue = d_query;
+        }
+        else
+        {
+            device_conditions[i].queryValue = nullptr;
+        }
+
+        // Free host allocations
+        delete[] flatBuffer;
+        delete[] h_devicePointers;
     }
 
     // Copy the modified conditions to device
@@ -458,6 +578,14 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     cudaEventRecord(stop);
 
     cudaEventSynchronize(stop);
+
+    cudaError_t err = cudaGetLastError(); // Check for errors
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA error: " << cudaGetErrorString(err) << std::endl;
+        return resultTable;
+    }
+
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
     std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
@@ -563,24 +691,35 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b)
     }
 }
 
-// __device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b)
-// {
-//     int cmp = strcmp(a, b);
-//     switch (op)
-//     {
-//     case GPUDBMS::ComparisonOperator::EQUAL:
-//         return cmp == 0;
-//     case GPUDBMS::ComparisonOperator::NOT_EQUAL:
-//         return cmp != 0;
-//     case GPUDBMS::ComparisonOperator::LESS_THAN:
-//         return cmp < 0;
-//     case GPUDBMS::ComparisonOperator::GREATER_THAN:
-//         return cmp > 0;
-//     case GPUDBMS::ComparisonOperator::LESS_EQUAL:
-//         return cmp <= 0;
-//     case GPUDBMS::ComparisonOperator::GREATER_EQUAL:
-//         return cmp >= 0;
-//     default:
-//         return false;
-//     }
-// }
+__device__ int device_strcmp(const char *a, const char *b)
+{
+    while (*a && *a == *b)
+    {
+        a++;
+        b++;
+    }
+    return *a - *b;
+}
+
+__device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b)
+{
+    int cmp = device_strcmp(a, b);
+
+    switch (op)
+    {
+    case GPUDBMS::ComparisonOperator::EQUAL:
+        return cmp == 0;
+    case GPUDBMS::ComparisonOperator::NOT_EQUAL:
+        return cmp != 0;
+    case GPUDBMS::ComparisonOperator::LESS_THAN:
+        return cmp < 0;
+    case GPUDBMS::ComparisonOperator::GREATER_THAN:
+        return cmp > 0;
+    case GPUDBMS::ComparisonOperator::LESS_EQUAL:
+        return cmp <= 0;
+    case GPUDBMS::ComparisonOperator::GREATER_EQUAL:
+        return cmp >= 0;
+    default:
+        return false;
+    }
+}

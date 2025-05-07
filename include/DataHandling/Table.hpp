@@ -32,6 +32,7 @@ namespace GPUDBMS
     {
         DataType type;
         std::string name;
+        size_t count;
         void *data;
     };
 

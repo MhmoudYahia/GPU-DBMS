@@ -20,7 +20,7 @@ namespace GPUDBMS
         Join(const Table &leftTable, const Table &rightTable,
              const Condition &condition, JoinType joinType = JoinType::INNER);
 
-        Table execute(bool useGPU);
+        Table execute(bool useGPU = false);
         Table executeCPU();
         Table executeGPU();
 

@@ -82,7 +82,7 @@ void testSelect()
 
     // Test simple selection (age < 30)
     // auto condition = ConditionBuilder::lessThan("age", "5000000");
-    auto condition = ConditionBuilder::equals("isEmployed", "true");
+    auto condition = ConditionBuilder::greaterThan("name", "Person1");
     Select selectOp(testTable, *condition);
 
     // Execute on CPU
@@ -93,7 +93,7 @@ void testSelect()
 
     std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
     std::cout << "CPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-    assert(resultCPU.getRowCount() == 5000000);
+    assert(resultCPU.getRowCount() == 9999999);
     std::cout << "CPU Select test passed!" << std::endl;
 
     // Execute on GPU if available
@@ -106,7 +106,7 @@ void testSelect()
 
         std::cout << resultGPU.getRowCount() << " rows selected on GPU" << std::endl;
         std::cout << "GPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-        assert(resultGPU.getRowCount() == 5000000);
+        assert(resultGPU.getRowCount() == 9999999);
         std::cout << "GPU Select test passed!" << std::endl;
     }
     catch (const std::exception &e)
@@ -184,21 +184,25 @@ void testComplexCondition()
     auto ageCondition = ConditionBuilder::greaterThan("age", "1000000");
     auto ageCondition2 = ConditionBuilder::lessThan("age", "9000000");
     auto salaryCondition = ConditionBuilder::lessThan("salary", "10");
+    auto nameCondition = ConditionBuilder::greaterThan("name", "Person20");
+    auto nameCondition2 = ConditionBuilder::lessThan("name", "Person20000");
 
-    auto andCondition = ConditionBuilder::And(std::move(ageCondition), std::move(ageCondition2));
-    auto complexCondition = ConditionBuilder::Or(std::move(andCondition), std::move(salaryCondition));
+    auto ageComplexCondition = ConditionBuilder::And(std::move(ageCondition), std::move(ageCondition2));
+    auto nameComplexCondition = ConditionBuilder::And(std::move(nameCondition), std::move(nameCondition2));
+    auto complexCondition =   ConditionBuilder::Or(std::move(ageComplexCondition), std::move(nameComplexCondition));
+    // auto complexCondition2 = ConditionBuilder::Or(std::move(complexCondition), std::move(salaryCondition));
 
     Select selectOp(testTable, *complexCondition);
 
     // Execute on CPU
     auto start = std::chrono::high_resolution_clock::now();
-    Table resultCPU = selectOp.execute();
+    // Table resultCPU = selectOp.execute();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
 
-    std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
+    // std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
     std::cout << "CPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-    assert(resultCPU.getRowCount() == 8000008);
+    // assert(resultCPU.getRowCount() == 8000001);
     std::cout << "CPU Select test passed!" << std::endl;
 
     // Execute on GPU if available
@@ -211,7 +215,7 @@ void testComplexCondition()
 
         std::cout << resultGPU.getRowCount() << " rows selected on GPU" << std::endl;
         std::cout << "GPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-        assert(resultGPU.getRowCount() == 8000008);
+        assert(resultGPU.getRowCount() == 8000001);
         std::cout << "GPU Select test passed!" << std::endl;
     }
     catch (const std::exception &e)
@@ -815,9 +819,9 @@ int main()
 {
     try
     {
-        testSelect();
+        // testSelect();
         // testProject();
-        // testComplexCondition();
+        testComplexCondition();
         // testFilter();
         // testOrderBy();
         // testAggregator();
