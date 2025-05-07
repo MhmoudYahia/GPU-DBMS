@@ -45,10 +45,12 @@ namespace GPUDBMS
         return resultColumns;
     }
 
-    Table Join::execute()
+    Table Join::execute(bool useGPU)
     {
-        // For now, just call CPU implementation
-        return executeCPU();
+        if (useGPU)
+            return executeGPU();
+        else
+            return executeCPU();
     }
 
     Table Join::executeCPU()
@@ -345,4 +347,7 @@ namespace GPUDBMS
         return resultTable;
     }
 
+    Table Join::executeGPU(){
+        // code to be here
+    }
 } // namespace GPUDBMS
