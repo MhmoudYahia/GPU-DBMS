@@ -51,21 +51,6 @@ __global__ void selectKernel(
         }
         case GPUDBMS::DataType::STRING:
         case GPUDBMS::DataType::VARCHAR:
-        {
-            const char **col = static_cast<const char **>(cond.columnInfo.data);
-            const char *query = static_cast<const char *>(cond.queryValue);
-
-            if (row >= cond.columnInfo.count || col[row] == nullptr || query == nullptr)
-            {
-                currentResult = false;
-            }
-            else
-            {
-                currentResult = compareString(cond.comparisonOp, col[row], query);
-            }
-
-            break;
-        }
         case GPUDBMS::DataType::DATE:
         case GPUDBMS::DataType::DATETIME:
         {
@@ -367,17 +352,22 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<std::string> &>(cd);
             const std::vector<std::string> &strVec = col.getData();
 
-            // Create a host array of strings
-            char **h_strArray = new char *[strVec.size()];
+            // Allocate a single contiguous buffer for all strings
+            const size_t maxStrLen = 256; // For VARCHAR/STRING
+            char *h_contiguousBuffer = new char[strVec.size() * maxStrLen];
+
+            // Copy strings to contiguous buffer
             for (size_t i = 0; i < strVec.size(); i++)
             {
-                h_strArray[i] = new char[256]; // Allocate memory for each string
-                strncpy(h_strArray[i], strVec[i].c_str(), 255);
-                h_strArray[i][255] = '\0'; // Null-terminate the string
+                strncpy(h_contiguousBuffer + (i * maxStrLen),
+                        strVec[i].c_str(),
+                        maxStrLen - 1);
+                h_contiguousBuffer[(i * maxStrLen) + maxStrLen - 1] = '\0';
             }
 
-            condition.columnInfo.data = h_strArray;
+            condition.columnInfo.data = h_contiguousBuffer;
             condition.columnInfo.count = strVec.size();
+            condition.columnInfo.stride = maxStrLen; // Add this to your ColumnInfo struct
             break;
         }
         case GPUDBMS::DataType::DATE:
@@ -468,7 +458,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
             break;
         }
 
-        if (cond.columnInfo.type == GPUDBMS::DataType::DATETIME || cond.columnInfo.type == GPUDBMS::DataType::DATE)
+        if (cond.columnInfo.type == GPUDBMS::DataType::DATETIME || cond.columnInfo.type == GPUDBMS::DataType::DATE|| cond.columnInfo.type == GPUDBMS::DataType::STRING || cond.columnInfo.type == GPUDBMS::DataType::VARCHAR)
         {
 
             cudaMalloc(&d_queryValue, cond.columnInfo.count * cond.columnInfo.stride);
