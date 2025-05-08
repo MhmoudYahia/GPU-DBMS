@@ -737,7 +737,7 @@ void testCSVDateTimeSupport()
     try
     {
         // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+        SQLQueryProcessor processor("/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data");
 
         // Print the Products table schema to verify column types
         std::cout << "\n--- Products Table Schema ---\n";
@@ -980,7 +980,7 @@ void showHelp()
 
 int main(int argc, char **argv)
 {
-    std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
+    std::string dataDirectory = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
     bool runCli = true;
     std::string testName = "";
 

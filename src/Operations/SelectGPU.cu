@@ -360,25 +360,6 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
     return conditions;
 }
 
-// // Helper function to get the size of different data types
-// size_t getTypeSize(GPUDBMS::DataType type) {
-//     switch (type) {
-//         case GPUDBMS::DataType::INT:
-//             return sizeof(int);
-//         case GPUDBMS::DataType::FLOAT:
-//             return sizeof(float);
-//         case GPUDBMS::DataType::DOUBLE:
-//             return sizeof(double);
-//         case GPUDBMS::DataType::BOOL:
-//             return sizeof(bool);
-//         case GPUDBMS::DataType::STRING:
-//         case GPUDBMS::DataType::VARCHAR:
-//             return 256; // Assuming fixed size for strings
-//         default:
-//             return 0;
-//     }
-// }
-
 extern "C" GPUDBMS::Table launchSelectKernel(
     const GPUDBMS::Table &m_inputTable,
     const GPUDBMS::Condition &m_condition)
@@ -404,16 +385,52 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         return resultTable;
     }
 
+    for (auto &cond : conditions)
+    {
+        // Allocate and copy queryValue to GPU
+        void *d_queryValue;
+        size_t valueSize = 0;
+
+        switch (cond.columnInfo.type)
+        {
+        case GPUDBMS::DataType::INT:
+            valueSize = sizeof(int);
+            break;
+        case GPUDBMS::DataType::FLOAT:
+            valueSize = sizeof(float);
+            break;
+        case GPUDBMS::DataType::DOUBLE:
+            valueSize = sizeof(double);
+            break;
+        case GPUDBMS::DataType::BOOL:
+            valueSize = sizeof(bool);
+            break;
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+            valueSize = 256;
+            break; // Max string size
+        }
+
+        cudaMalloc(&d_queryValue, valueSize);
+        cudaMemcpy(d_queryValue, cond.queryValue, valueSize, cudaMemcpyHostToDevice);
+        cond.queryValue = d_queryValue; // Replace host pointer with device pointer
+
+        // Allocate and copy column data to GPU
+        void *d_columnData;
+        size_t dataSize = cond.columnInfo.count * valueSize;
+        cudaMalloc(&d_columnData, dataSize);
+        cudaMemcpy(d_columnData, cond.columnInfo.data, dataSize, cudaMemcpyHostToDevice);
+        cond.columnInfo.data = d_columnData; // Replace host pointer with device pointer
+    }
+
+    // Step 2: Copy conditions to GPU (now they contain device pointers)
+    ConditionGPU *d_conditions;
+    cudaMalloc(&d_conditions, conditions.size() * sizeof(ConditionGPU));
+    cudaMemcpy(d_conditions, conditions.data(), conditions.size() * sizeof(ConditionGPU), cudaMemcpyHostToDevice);
+
     // Allocate memory for output flags
     bool *h_outputFlags = new bool[rowCount];
     std::fill(h_outputFlags, h_outputFlags + rowCount, false);
-
-    // Prepare device memory for conditions and their data
-    ConditionGPU *d_conditions = nullptr;
-    cudaMalloc((void **)&d_conditions, conditions.size() * sizeof(ConditionGPU));
-
-    // Copy the modified conditions to device
-    cudaMemcpy(d_conditions, conditions.data(), conditions.size() * sizeof(ConditionGPU), cudaMemcpyHostToDevice);
 
     // Allocate device memory for output flags
     bool *d_outputFlags;
@@ -433,13 +450,17 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         rowCount,
         conditions.size(),
         d_conditions,
-        // d_columnInfos,
-        // d_outputFlags,
-        // d_queryValues.data()
         d_outputFlags);
     cudaEventRecord(stop);
 
     cudaEventSynchronize(stop);
+
+    for (auto &cond : conditions)
+    {
+        cudaFree(const_cast<void*>(cond.queryValue));
+        cudaFree(cond.columnInfo.data);
+    }
+    cudaFree(d_conditions);
 
     cudaError_t err = cudaGetLastError(); // Check for errors
     if (err != cudaSuccess)
@@ -455,13 +476,6 @@ extern "C" GPUDBMS::Table launchSelectKernel(
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     cudaDeviceSynchronize();
-
-    // cudaError_t err = cudaGetLastError();
-    // if (err != cudaSuccess)
-    // {
-    //     std::cerr << "CUDA error: " << cudaGetErrorString(err) << std::endl;
-    //     return resultTable;
-    // }
 
     // Copy the output flags back to host
     cudaMemcpy(h_outputFlags, d_outputFlags, rowCount * sizeof(bool), cudaMemcpyDeviceToHost);
