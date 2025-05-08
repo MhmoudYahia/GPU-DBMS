@@ -74,8 +74,22 @@ namespace GPUDBMS
                     resultTable.appendStringValue(resultCol, m_inputTable.getStringValue(sourceCol, row));
                     break;
                 case DataType::BOOL:
-                    resultTable.appendBoolValue(resultCol, m_inputTable.getBoolValue(sourceCol, row));
+                    resultTable.appendBoolValue(resultCol, m_inputTable.getBoolValue(sourceCol, row));  
                     break;
+                
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    try {
+                        std::string dateValue = m_inputTable.getDateTimeValue(sourceCol, row);
+                        resultTable.appendStringValue(resultCol, dateValue);
+                    } catch (const std::exception& e) {
+                        // Fallback to string if datetime-specific method fails
+                        std::cout << "Warning: Falling back to string for datetime column: " << e.what() << std::endl;
+                        resultTable.appendStringValue(resultCol, m_inputTable.getStringValue(sourceCol, row));
+                    }
+                    break;
+                default:
+                    throw std::runtime_error("Unsupported data type for projection: " + column.getName());
                 }
             }
 

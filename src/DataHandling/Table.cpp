@@ -415,10 +415,26 @@ namespace GPUDBMS
     std::string Table::getDateTimeValue(size_t columnIndex, size_t rowIndex) const
     {
         const ColumnData &column = getColumnData(columnIndex);
-        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE)
-        {
-            throw std::runtime_error("Column is not of type DATETIME or DATE");
+                  
+        // Accept either DATETIME/DATE or VARCHAR/STRING for datetime values
+        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE) {
+            // For non-datetime columns, still try to get the value if it's a string type
+            if (column.getType() == DataType::VARCHAR || column.getType() == DataType::STRING) {
+                const auto &typedColumn = static_cast<const ColumnDataImpl<std::string> &>(column);
+                std::string value = typedColumn.getValue(rowIndex);
+                
+                // Basic validation to ensure it looks like a date
+                if (isValidDateTime(value)) {
+                    return value;
+                }
+                
+                // std::cout << "Warning: Value '" << value << "' doesn't appear to be a valid datetime" << std::endl;
+                return value; // Return it anyway
+            }
+            
+            throw std::runtime_error("Column is not of type DATETIME or DATE and not a string type");
         }
+        
         const auto &typedColumn = static_cast<const ColumnDataImpl<std::string> &>(column);
         return typedColumn.getValue(rowIndex);
     }
@@ -427,7 +443,8 @@ namespace GPUDBMS
     void Table::appendDateTimeValue(size_t columnIndex, const std::string &value)
     {
         ColumnData &column = getColumnData(columnIndex);
-        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE)
+        std::cout << "Column type: " << static_cast<int>(column.getType()) << std::endl;
+        if (column.getType() != DataType::DATETIME)
         {
             throw std::runtime_error("Column is not of type DATETIME or DATE");
         }

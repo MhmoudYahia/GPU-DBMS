@@ -55,19 +55,22 @@ namespace GPUDBMS
         storageManager->saveTableToCSV(tableName, table);
     }
 
-    void SQLQueryProcessor::saveQueryResultToCSV(const Table& resultTable, const std::string& filename) {
-        if (!storageManager) {
+    void SQLQueryProcessor::saveQueryResultToCSV(const Table &resultTable, const std::string &filename)
+    {
+        if (!storageManager)
+        {
             throw std::runtime_error("StorageManager not initialized - cannot save query result");
         }
-        
+
         CSVProcessor csvProcessor;
         std::string outputPath = storageManager->getDataDirectory() + "/outputs/csv/" + filename + ".csv";
         csvProcessor.writeCSV(resultTable, outputPath);
         std::cout << "Saved query result to " << outputPath << std::endl;
     }
-    
+
     // Process query and save the result in one step
-    Table SQLQueryProcessor::processQueryAndSave(const std::string& query, const std::string& outputFilename) {
+    Table SQLQueryProcessor::processQueryAndSave(const std::string &query, const std::string &outputFilename)
+    {
         Table result = processQuery(query);
         saveQueryResultToCSV(result, outputFilename);
         return result;
@@ -117,7 +120,7 @@ namespace GPUDBMS
         // Cleanup if needed
     }
 
-    Table SQLQueryProcessor::processQuery(const std::string &query)
+    Table SQLQueryProcessor::processQuery(const std::string &query, bool useGPU) 
     {
         // Parse the SQL query
         hsql::SQLParserResult result;
@@ -137,7 +140,7 @@ namespace GPUDBMS
             switch (stmt->type())
             {
             case hsql::kStmtSelect:
-                return executeSelectStatement(static_cast<const hsql::SelectStatement *>(stmt));
+                return executeSelectStatement(static_cast<const hsql::SelectStatement *>(stmt), useGPU);
             case hsql::kStmtCreate:
                 return executeCreateStatement(static_cast<const hsql::CreateStatement *>(stmt));
             case hsql::kStmtInsert:
@@ -284,7 +287,7 @@ namespace GPUDBMS
         return it->second;
     }
 
-    Table SQLQueryProcessor::executeSelectStatement(const hsql::SelectStatement *stmt)
+    Table SQLQueryProcessor::executeSelectStatement(const hsql::SelectStatement *stmt, bool useGPU)
     {
         // Basic implementation to demonstrate integration
         Table resultTable;
@@ -334,6 +337,26 @@ namespace GPUDBMS
             Join joinOp(leftTable, rightTable, *joinCondition, joinType);
             resultTable = joinOp.execute();
         }
+        else if (stmt->fromTable->type == hsql::kTableCrossProduct)
+        {
+            // Handle comma-separated tables (implicit join)
+            // For each table in the cross product, join them one by one
+            resultTable = getTable(stmt->fromTable->list->at(0)->name);
+
+            // Start from the second table in the list
+            for (size_t i = 1; i < stmt->fromTable->list->size(); i++)
+            {
+                Table rightTable = getTable(stmt->fromTable->list->at(i)->name);
+
+                // Create a dummy condition that always evaluates to true
+                // The real filtering will happen in the WHERE clause
+                auto dummyCondition = ConditionBuilder::equals("1", "1");
+
+                // Execute cross join (which is effectively what comma does)
+                Join joinOp(resultTable, rightTable, *dummyCondition, JoinType::INNER);
+                resultTable = joinOp.execute();
+            }
+        }
         else
         {
             throw std::runtime_error("Unsupported FROM clause type");
@@ -344,7 +367,7 @@ namespace GPUDBMS
         {
             auto condition = translateWhereCondition(stmt->whereClause);
             Select selectOp(resultTable, *condition);
-            resultTable = selectOp.execute();
+            resultTable = selectOp.execute(useGPU);
         }
 
         // Check if this query uses aggregation
@@ -477,10 +500,24 @@ namespace GPUDBMS
             {
                 if (expr->type == hsql::kExprColumnRef)
                 {
-                    projectColumns.push_back(expr->name);
+                    std::string columnName;
+                    
+                    // Handle table aliases in column references
+                    if (expr->table)
+                    {
+                        // Just use the column name without the table alias
+                        columnName = expr->name;
+                        
+                    }
+                    else
+                    {
+                        columnName = expr->name;
+                    }
+                    
+                    projectColumns.push_back(columnName);
                 }
             }
-
+        
             if (!projectColumns.empty())
             {
                 Project projectOp(resultTable, projectColumns);
@@ -532,7 +569,21 @@ namespace GPUDBMS
 
         return resultTable;
     }
+    std::vector<std::string> SQLQueryProcessor::getTableNames() const
+    {
+        std::vector<std::string> tableNames;
 
+        // Reserve space for efficiency
+        tableNames.reserve(tables.size());
+
+        // Extract all table names from the map
+        for (const auto &[name, _] : tables)
+        {
+            tableNames.push_back(name);
+        }
+
+        return tableNames;
+    }
     // You may also need to implement the translateWhereCondition method
     std::unique_ptr<Condition> SQLQueryProcessor::translateWhereCondition(const hsql::Expr *expr)
     {
@@ -543,18 +594,55 @@ namespace GPUDBMS
         {
         case hsql::kExprOperator:
         {
-            if (expr->expr2->type == hsql::kExprLiteralString) {
+            if (expr->expr2->type == hsql::kExprLiteralString)
+            {
+                // Get the column name from expr
+                std::string columnName;
+                if (expr->expr->type == hsql::kExprColumnRef)
+                {
+                    // Handle table aliases if present
+                    if (expr->expr->table)
+                    {
+                        columnName = expr->expr->name;
+                    }
+                    else
+                    {
+                        columnName = expr->expr->name;
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("Left side of condition must be a column reference");
+                }
+
                 std::string value = expr->expr2->name;
-                
+
                 // If this looks like a DateTime value, strip quotes
-                if (value.length() >= 2 && (value[0] == '\'' || value[0] == '"') && 
-                    (value[value.length()-1] == '\'' || value[value.length()-1] == '"')) {
+                if (value.length() >= 2 && (value[0] == '\'' || value[0] == '"') &&
+                    (value[value.length() - 1] == '\'' || value[value.length() - 1] == '"'))
+                {
                     value = value.substr(1, value.length() - 2);
                 }
-                
+
                 // Create the condition
-                switch (expr->opType) {
-                    // Handle operators using value as a DateTime literal
+                switch (expr->opType)
+                {
+                case hsql::kOpEquals:
+                    return ConditionBuilder::equals(columnName, value);
+                case hsql::kOpNotEquals:
+                    return ConditionBuilder::notEquals(columnName, value);
+                case hsql::kOpLess:
+                    return ConditionBuilder::lessThan(columnName, value);
+                case hsql::kOpLessEq:
+                    return ConditionBuilder::lessEqual(columnName, value);
+                case hsql::kOpGreater:
+                    return ConditionBuilder::greaterThan(columnName, value);
+                case hsql::kOpGreaterEq:
+                    return ConditionBuilder::greaterEqual(columnName, value);
+                case hsql::kOpLike:
+                    return ConditionBuilder::like(columnName, value);
+                default:
+                    throw std::runtime_error("Unsupported string operator in WHERE clause");
                 }
             }
             // Handle binary operators
@@ -565,9 +653,11 @@ namespace GPUDBMS
                 if (expr->expr->type == hsql::kExprColumnRef)
                 {
                     // Handle table aliases if present (e.g., e.id)
+                    std::cout << "Column reference: " << expr->expr->name << std::endl;
                     if (expr->expr->table)
                     {
-                        columnName = std::string(expr->expr->table) + "." + expr->expr->name;
+
+                        columnName = expr->expr->name;
                     }
                     else
                     {

@@ -349,60 +349,60 @@ namespace GPUDBMS
     }
 
     Table Join::executeGPU(){
-            // Create result table schema
-            std::vector<Column> resultColumns = createResultSchema();
-            Table resultTable(resultColumns);
+    //         // Create result table schema
+    //         std::vector<Column> resultColumns = createResultSchema();
+    //         Table resultTable(resultColumns);
         
-            // Maps to track column names across tables
-            std::unordered_map<std::string, int> leftColumnMap;
-            std::unordered_map<std::string, DataType> leftColumnTypes;
+    //         // Maps to track column names across tables
+    //         std::unordered_map<std::string, int> leftColumnMap;
+    //         std::unordered_map<std::string, DataType> leftColumnTypes;
 
-            for (size_t i = 0; i < m_leftTable.getColumnCount(); ++i)
-            {
-                const auto &column = m_leftTable.getColumns()[i];
-                leftColumnMap[column.getName()] = i;
-                leftColumnTypes[column.getName()] = column.getType();
-            }
+    //         for (size_t i = 0; i < m_leftTable.getColumnCount(); ++i)
+    //         {
+    //             const auto &column = m_leftTable.getColumns()[i];
+    //             leftColumnMap[column.getName()] = i;
+    //             leftColumnTypes[column.getName()] = column.getType();
+    //         }
 
-            std::unordered_map<std::string, int> rightColumnMap;
-            std::unordered_map<std::string, DataType> rightColumnTypes;
+    //         std::unordered_map<std::string, int> rightColumnMap;
+    //         std::unordered_map<std::string, DataType> rightColumnTypes;
 
-            for (size_t i = 0; i < m_rightTable.getColumnCount(); ++i)
-            {
-                const auto &column = m_rightTable.getColumns()[i];
-                rightColumnMap[column.getName()] = i;
-                rightColumnTypes[column.getName()] = column.getType();
-            }
+    //         for (size_t i = 0; i < m_rightTable.getColumnCount(); ++i)
+    //         {
+    //             const auto &column = m_rightTable.getColumns()[i];
+    //             rightColumnMap[column.getName()] = i;
+    //             rightColumnTypes[column.getName()] = column.getType();
+    //         }
 
-            int leftRows = m_leftTable.getRowCount();
-            int rightRows = m_rightTable.getRowCount();
-            int leftCols = m_leftTable.getColumnCount();
-            int rightCols = m_rightTable.getColumnCount();
+    //         int leftRows = m_leftTable.getRowCount();
+    //         int rightRows = m_rightTable.getRowCount();
+    //         int leftCols = m_leftTable.getColumnCount();
+    //         int rightCols = m_rightTable.getColumnCount();
         
-            if(leftColumnTypes[m_condition.m_columnName]!=rightColumnTypes[m_condition.m_value])
-                std::cerr << "Error the columns types are incompatible\n";
+    //         if(leftColumnTypes[m_condition.m_columnName]!=rightColumnTypes[m_condition.m_value])
+    //             std::cerr << "Error the columns types are incompatible\n";
             
-            switch (leftColumnTypes[m_condition.m_columnName])
-            {
-            case DataType::INT:
-                launchJoinKernel<int>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::INT);
-                break;
-            case DataType::FLOAT:
-                launchJoinKernel<float>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::FLOAT);
-                break;
-            case DataType::DOUBLE:
-                launchJoinKernel<double>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::DOUBLE);
-                break;
-            case DataType::VARCHAR:
-            case DataType::STRING:
-                launchJoinKernel<std::string>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::STRING);
-                break;
-            case DataType::BOOL:
-                launchJoinKernel<bool>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::BOOL);
-                break;
-            }
+    //         switch (leftColumnTypes[m_condition.m_columnName])
+    //         {
+    //         case DataType::INT:
+    //             launchJoinKernel<int>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::INT);
+    //             break;
+    //         case DataType::FLOAT:
+    //             launchJoinKernel<float>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::FLOAT);
+    //             break;
+    //         case DataType::DOUBLE:
+    //             launchJoinKernel<double>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::DOUBLE);
+    //             break;
+    //         case DataType::VARCHAR:
+    //         case DataType::STRING:
+    //             launchJoinKernel<std::string>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::STRING);
+    //             break;
+    //         case DataType::BOOL:
+    //             launchJoinKernel<bool>(&resultTable,leftCols,leftRows, rightCols, rightRows, DataType::BOOL);
+    //             break;
+    //         }
 
-            return resultTable;        
+    //         return resultTable;        
     }
  
 } // namespace GPUDBMS

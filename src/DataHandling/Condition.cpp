@@ -1,6 +1,7 @@
 #include "../../include/DataHandling/Condition.hpp"
 #include "../../include/DataHandling/ConditionGPU.cuh"
-
+#include <iomanip>  // For std::get_time
+#include <ctime> 
 #include <algorithm>
 #include "../../include/DataHandling/Table.hpp" // Include the header defining DataType
 #include <regex>
@@ -181,88 +182,61 @@ namespace GPUDBMS
         }
     }
 
-    // to be used inside JoinKernel
-    template <typename T>
-    bool ComparisonCondition::evaluate(int typeEnum, T leftValue, T rightValue){ 
-        switch (m_operator)
-        {
-        case ComparisonOperator::EQUAL:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) == 0;
-            else
-                return leftValue == rightValue;
-        case ComparisonOperator::NOT_EQUAL:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) != 0;
-            else
-                return leftValue != rightValue;
-        case ComparisonOperator::LESS_THAN:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) < 0;
-            else
-                return leftValue < rightValue;
-        case ComparisonOperator::LESS_EQUAL:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) <= 0;
-            else
-                return leftValue <= rightValue;
-        case ComparisonOperator::GREATER_THAN:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) > 0;
-            else
-                return leftValue > rightValue;
-        case ComparisonOperator::GREATER_EQUAL:
-            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
-                return compareDateTime(leftValue, rightValue) >= 0;
-            else
-                return leftValue >= rightValue;
-        case ComparisonOperator::LIKE:
-        {
-            // Simple wildcard pattern matching (% matches any sequence)
-            std::string pattern = rightValue;
-            // Replace % with regex .*
-            std::string regexPattern;
-            for (char c : pattern)
-            {
-                if (c == '%')
-                {
-                    regexPattern += ".*";
-                }
-                else
-                {
-                    regexPattern += c;
-                }
-            }
-            std::regex regex(regexPattern);
-            return std::regex_match(leftValue, regex);
-        }
-        case ComparisonOperator::IN:
-            // Simple implementation - assumes value is comma-separated list
-            return m_value.find(leftValue) != std::string::npos;
-        default:
-            return false;
-        }
-
-    }
-
-    // Add this helper method to ComparisonCondition class
     int ComparisonCondition::compareDateTime(const std::string &dateTime1, const std::string &dateTime2) const
     {
-        // Since this is dealing with string values, let's add some logging
-        std::cout << "Comparing dates: '" << dateTime1 << "' with '" << dateTime2 << "'" << std::endl;
-
         // If either is empty, handle that case
         if (dateTime1.empty() || dateTime2.empty())
         {
             return dateTime1.empty() ? -1 : 1;
         }
 
-        // Basic string comparison should work for ISO format (YYYY-MM-DD HH:MM:SS)
-        // because lexicographic string comparison works for this format
-        int result = dateTime1.compare(dateTime2);
-        std::cout << "Comparison result: " << result << std::endl;
-        return result;
+        try
+        {
+            // Parse dates - handle common ISO formats
+            std::tm tm1 = {}, tm2 = {};
+            std::istringstream ss1(dateTime1), ss2(dateTime2);
+
+            // Try to parse as YYYY-MM-DD HH:MM:SS format
+            if (dateTime1.length() > 10)
+            { // Full datetime
+                ss1 >> std::get_time(&tm1, "%Y-%m-%d %H:%M:%S");
+            }
+            else
+            { // Just date
+                ss1 >> std::get_time(&tm1, "%Y-%m-%d");
+            }
+
+            if (dateTime2.length() > 10)
+            { // Full datetime
+                ss2 >> std::get_time(&tm2, "%Y-%m-%d %H:%M:%S");
+            }
+            else
+            { // Just date
+                ss2 >> std::get_time(&tm2, "%Y-%m-%d");
+            }
+
+            // Check if parsing was successful
+            if (ss1.fail() || ss2.fail())
+            {
+                // Fall back to string comparison if parsing fails
+                return dateTime1.compare(dateTime2);
+            }
+
+            // Convert to time_t for easy comparison
+            std::time_t time1 = std::mktime(&tm1);
+            std::time_t time2 = std::mktime(&tm2);
+
+            if (time1 == time2)
+                return 0;
+            return (time1 < time2) ? -1 : 1;
+        }
+        catch (const std::exception &)
+        {
+            // If any exception occurs, fall back to string comparison
+            return dateTime1.compare(dateTime2);
+        }
     }
+
     // bool *ComparisonCondition::evaluateGPU(
     //     const std::vector<DataType> &colsType,
     //     const std::vector<std::string> &row,

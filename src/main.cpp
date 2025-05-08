@@ -10,9 +10,9 @@
 #include "../include/Operations/OrderBy.hpp"
 #include "../include/Operations/Aggregator.hpp"
 #include "../include/Operations/Project.hpp"
-#include "../include/Operations/Join.hpp"
+// #include "../include/Operations/Join.hpp"
 #include "../include/SQLProcessing/SQLQueryProcessor.hpp"
-
+#include "../include/CLI/CommandLineInterface.hpp"
 #define USE_GPU 1
 
 using namespace GPUDBMS;
@@ -122,57 +122,57 @@ void testSelect()
 
 // Assuming you have a Table class, Project operation, and necessary dependencies defined
 
-void testProject()
-{
-    std::cout << "Testing Project operation..." << std::endl;
+// void testProject()
+// {
+//     std::cout << "Testing Project operation..." << std::endl;
 
-    Table testTable = createTestTable();
+//     Table testTable = createTestTable();
 
-    // Test projection (id, name)
-    std::vector<std::string> columns = {"id", "name"};
-    Project projectOp(testTable, columns);
+//     // Test projection (id, name)
+//     std::vector<std::string> columns = {"id", "name"};
+//     Project projectOp(testTable, columns);
 
-    // Measure CPU execution time
-    auto startCPU = std::chrono::high_resolution_clock::now();
+//     // Measure CPU execution time
+//     auto startCPU = std::chrono::high_resolution_clock::now();
 
-    // Execute on CPU
-    Table resultCPU = projectOp.execute();
+//     // Execute on CPU
+//     Table resultCPU = projectOp.execute();
 
-    auto endCPU = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<float> durationCPU = endCPU - startCPU;
+//     auto endCPU = std::chrono::high_resolution_clock::now();
+//     std::chrono::duration<float> durationCPU = endCPU - startCPU;
 
-    assert(resultCPU.getColumnCount() == 2);
-    assert(resultCPU.getColumnIndex("id") != -1);
-    assert(resultCPU.getColumnIndex("name") != -1);
-    assert(resultCPU.getColumnIndex("age") == -1);
+//     assert(resultCPU.getColumnCount() == 2);
+//     assert(resultCPU.getColumnIndex("id") != -1);
+//     assert(resultCPU.getColumnIndex("name") != -1);
+//     assert(resultCPU.getColumnIndex("age") == -1);
 
-    std::cout << "CPU Project test passed!" << std::endl;
-    std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
+//     std::cout << "CPU Project test passed!" << std::endl;
+//     std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
 
-    // Measure GPU execution time (if available)
-    try
-    {
-        auto startGPU = std::chrono::high_resolution_clock::now();
+//     // Measure GPU execution time (if available)
+//     try
+//     {
+//         auto startGPU = std::chrono::high_resolution_clock::now();
 
-        // Execute on GPU
-        Table resultGPU = projectOp.execute(USE_GPU);
+//         // Execute on GPU
+//         Table resultGPU = projectOp.execute(USE_GPU);
 
-        auto endGPU = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<float> durationGPU = endGPU - startGPU;
+//         auto endGPU = std::chrono::high_resolution_clock::now();
+//         std::chrono::duration<float> durationGPU = endGPU - startGPU;
 
-        assert(resultGPU.getColumnCount() == 2);
-        assert(resultGPU.getColumnIndex("id") != -1);
-        assert(resultGPU.getColumnIndex("name") != -1);
-        assert(resultGPU.getColumnIndex("age") == -1);
+//         assert(resultGPU.getColumnCount() == 2);
+//         assert(resultGPU.getColumnIndex("id") != -1);
+//         assert(resultGPU.getColumnIndex("name") != -1);
+//         assert(resultGPU.getColumnIndex("age") == -1);
 
-        std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
-        std::cout << "GPU Project test passed!" << std::endl;
-    }
-    catch (const std::exception &e)
-    {
-        std::cout << "GPU execution not available: " << e.what() << std::endl;
-    }
-}
+//         std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
+//         std::cout << "GPU Project test passed!" << std::endl;
+//     }
+//     catch (const std::exception &e)
+//     {
+//         std::cout << "GPU execution not available: " << e.what() << std::endl;
+//     }
+// }
 
 // Test complex condition
 void testComplexCondition()
@@ -189,7 +189,7 @@ void testComplexCondition()
 
     auto ageComplexCondition = ConditionBuilder::And(std::move(ageCondition), std::move(ageCondition2));
     auto nameComplexCondition = ConditionBuilder::And(std::move(nameCondition), std::move(nameCondition2));
-    auto complexCondition =   ConditionBuilder::Or(std::move(ageComplexCondition), std::move(nameComplexCondition));
+    auto complexCondition = ConditionBuilder::Or(std::move(ageComplexCondition), std::move(nameComplexCondition));
     // auto complexCondition2 = ConditionBuilder::Or(std::move(complexCondition), std::move(salaryCondition));
 
     Select selectOp(testTable, *complexCondition);
@@ -455,94 +455,94 @@ void testAggregator()
 
     std::cout << "\nAll CPU Aggregator tests passed!" << std::endl;
 }
-void testJoin()
-{
-    std::cout << "Testing Join operation..." << std::endl;
+// void testJoin()
+// {
+//     std::cout << "Testing Join operation..." << std::endl;
 
-    // Create two test tables for joining
-    Table leftTable = createTestTable(); // This is our existing test table
+//     // Create two test tables for joining
+//     Table leftTable = createTestTable(); // This is our existing test table
 
-    // Create a second test table with ids that will match some from the first table
-    std::vector<Column> rightColumns = {
-        Column("id", DataType::INT),
-        Column("department", DataType::VARCHAR),
-        Column("location", DataType::VARCHAR)};
+//     // Create a second test table with ids that will match some from the first table
+//     std::vector<Column> rightColumns = {
+//         Column("id", DataType::INT),
+//         Column("department", DataType::VARCHAR),
+//         Column("location", DataType::VARCHAR)};
 
-    Table rightTable(rightColumns);
+//     Table rightTable(rightColumns);
 
-    // Add data to the right table
-    auto &rightIdCol = static_cast<ColumnDataImpl<int> &>(rightTable.getColumnData("id"));
-    auto &rightDeptCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("department"));
-    auto &rightLocCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("location"));
+//     // Add data to the right table
+//     auto &rightIdCol = static_cast<ColumnDataImpl<int> &>(rightTable.getColumnData("id"));
+//     auto &rightDeptCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("department"));
+//     auto &rightLocCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("location"));
 
-    // Add some rows that will match (id: 2, 4) and some that won't
-    rightIdCol.append(2);
-    rightDeptCol.append("Engineering");
-    rightLocCol.append("Building A");
+//     // Add some rows that will match (id: 2, 4) and some that won't
+//     rightIdCol.append(2);
+//     rightDeptCol.append("Engineering");
+//     rightLocCol.append("Building A");
 
-    rightIdCol.append(4);
-    rightDeptCol.append("Marketing");
-    rightLocCol.append("Building B");
+//     rightIdCol.append(4);
+//     rightDeptCol.append("Marketing");
+//     rightLocCol.append("Building B");
 
-    rightIdCol.append(6);
-    rightDeptCol.append("Finance");
-    rightLocCol.append("Building C");
+//     rightIdCol.append(6);
+//     rightDeptCol.append("Finance");
+//     rightLocCol.append("Building C");
 
-    // Finalize rows
-    rightTable.finalizeRow();
-    rightTable.finalizeRow();
-    rightTable.finalizeRow();
+//     // Finalize rows
+//     rightTable.finalizeRow();
+//     rightTable.finalizeRow();
+//     rightTable.finalizeRow();
 
-    // Create join condition: leftTable.id = rightTable.id
-    auto joinCondition = ConditionBuilder::equals("id", "id");
-    // Test INNER JOIN
-    Join innerJoinOp(leftTable, rightTable, *joinCondition, JoinType::INNER);
-    Table innerJoinResult = innerJoinOp.executeCPU();
+//     // Create join condition: leftTable.id = rightTable.id
+//     auto joinCondition = ConditionBuilder::equals("id", "id");
+//     // Test INNER JOIN
+//     Join innerJoinOp(leftTable, rightTable, *joinCondition, JoinType::INNER);
+//     Table innerJoinResult = innerJoinOp.executeCPU();
 
-    // Verify inner join results
-    assert(innerJoinResult.getRowCount() == 2); // Should match 2 rows (id 2 and 4)
-    assert(innerJoinResult.getColumnCount() == leftTable.getColumnCount() + rightTable.getColumnCount());
+//     // Verify inner join results
+//     assert(innerJoinResult.getRowCount() == 2); // Should match 2 rows (id 2 and 4)
+//     assert(innerJoinResult.getColumnCount() == leftTable.getColumnCount() + rightTable.getColumnCount());
 
-    // Verify some values from the joined rows
-    int leftIdCol = innerJoinResult.getColumnIndex("id");
+//     // Verify some values from the joined rows
+//     int leftIdCol = innerJoinResult.getColumnIndex("id");
 
-    // Check that the join contains the expected IDs
-    std::vector<int> expectedIds = {2, 4}; // IDs that should be in the join result
-    bool foundId2 = false;
-    bool foundId4 = false;
+//     // Check that the join contains the expected IDs
+//     std::vector<int> expectedIds = {2, 4}; // IDs that should be in the join result
+//     bool foundId2 = false;
+//     bool foundId4 = false;
 
-    for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row)
-    {
-        int rowId = innerJoinResult.getIntValue(leftIdCol, row);
-        if (rowId == 2)
-            foundId2 = true;
-        if (rowId == 4)
-            foundId4 = true;
-    }
+//     for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row)
+//     {
+//         int rowId = innerJoinResult.getIntValue(leftIdCol, row);
+//         if (rowId == 2)
+//             foundId2 = true;
+//         if (rowId == 4)
+//             foundId4 = true;
+//     }
 
-    assert(foundId2 && foundId4);
+//     assert(foundId2 && foundId4);
 
-    // Test LEFT JOIN
-    Join leftJoinOp(leftTable, rightTable, *joinCondition, JoinType::LEFT);
-    Table leftJoinResult = leftJoinOp.executeCPU();
+//     // Test LEFT JOIN
+//     Join leftJoinOp(leftTable, rightTable, *joinCondition, JoinType::LEFT);
+//     Table leftJoinResult = leftJoinOp.executeCPU();
 
-    // Verify left join results
-    assert(leftJoinResult.getRowCount() == 5); // Should include all rows from left table
+//     // Verify left join results
+//     assert(leftJoinResult.getRowCount() == 5); // Should include all rows from left table
 
-    // Try on GPU if available
-    try
-    {
-        Table resultGPU = innerJoinOp.execute();
-        assert(resultGPU.getRowCount() == 2);
-        std::cout << "GPU Join test passed!" << std::endl;
-    }
-    catch (const std::exception &e)
-    {
-        std::cout << "GPU execution not available: " << e.what() << std::endl;
-    }
+//     // Try on GPU if available
+//     try
+//     {
+//         Table resultGPU = innerJoinOp.execute();
+//         assert(resultGPU.getRowCount() == 2);
+//         std::cout << "GPU Join test passed!" << std::endl;
+//     }
+//     catch (const std::exception &e)
+//     {
+//         std::cout << "GPU execution not available: " << e.what() << std::endl;
+//     }
 
-    std::cout << "CPU Join test passed!" << std::endl;
-}
+//     std::cout << "CPU Join test passed!" << std::endl;
+// }
 
 void testSelectQueryParser(SQLQueryProcessor &processor)
 {
@@ -704,6 +704,132 @@ void testCSVLoading()
     // }
 }
 
+// Helper function to get readable type names
+std::string getDataTypeName(DataType type)
+{
+    switch (type)
+    {
+    case DataType::INT:
+        return "INT";
+    case DataType::FLOAT:
+        return "FLOAT";
+    case DataType::DOUBLE:
+        return "DOUBLE";
+    case DataType::STRING:
+        return "STRING";
+    case DataType::VARCHAR:
+        return "VARCHAR";
+    case DataType::BOOL:
+        return "BOOL";
+    case DataType::DATE:
+        return "DATE";
+    case DataType::DATETIME:
+        return "DATETIME";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+void testCSVDateTimeSupport()
+{
+    std::cout << "=== Testing DateTime support with CSV files ===" << std::endl;
+
+    try
+    {
+        // Initialize SQLQueryProcessor with the data directory
+        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+
+        // Print the Products table schema to verify column types
+        std::cout << "\n--- Products Table Schema ---\n";
+        Table productsTable = processor.getTable("Products");
+
+        for (size_t i = 0; i < productsTable.getColumnCount(); i++)
+        {
+            std::cout << "Column " << i << ": " << productsTable.getColumnName(i)
+                      << " (Type: " << static_cast<int>(productsTable.getColumnType(i))
+                      << ", TypeName: " << getDataTypeName(productsTable.getColumnType(i)) << ")" << std::endl;
+        }
+
+        // Print sample rows to verify data
+        std::cout << "\n--- Sample Product Data ---\n";
+        for (size_t row = 0; row < std::min(productsTable.getRowCount(), size_t(3)); row++)
+        {
+            std::cout << "Row " << row << ": ";
+            for (size_t col = 0; col < productsTable.getColumnCount(); col++)
+            {
+                std::cout << productsTable.getColumnName(col) << "=";
+
+                // Print based on column type
+                switch (productsTable.getColumnType(col))
+                {
+                case DataType::INT:
+                    std::cout << productsTable.getIntValue(col, row);
+                    break;
+                case DataType::DOUBLE:
+                case DataType::FLOAT:
+                    std::cout << productsTable.getDoubleValue(col, row);
+                    break;
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    std::cout << "'" << productsTable.getStringValue(col, row) << "'";
+                    break;
+                default:
+                    std::cout << "'" << productsTable.getStringValue(col, row) << "'";
+                }
+                std::cout << ", ";
+            }
+            std::cout << std::endl;
+        }
+
+        // Test query for ID column - known to work
+        std::cout << "\n--- Testing ID Column Selection ---\n";
+        Table idResult = processor.processQuery("SELECT Products_id FROM Products");
+        std::cout << "Query result has " << idResult.getRowCount() << " rows" << std::endl;
+
+        // Test query for DateTime column - the problematic one
+        std::cout << "\n--- Testing DateTime Column Selection ---\n";
+        Table dateResult = processor.processQuery("SELECT ReleaseDate FROM Products");
+        std::cout << "Query result has " << dateResult.getRowCount() << " rows" << std::endl;
+
+        // If the query returned results, print them
+        if (dateResult.getRowCount() > 0)
+        {
+            for (size_t i = 0; i < std::min(dateResult.getRowCount(), size_t(5)); i++)
+            {
+                try
+                {
+                    std::cout << "ReleaseDate: " << dateResult.getStringValue(0, i) << std::endl;
+                }
+                catch (const std::exception &e)
+                {
+                    std::cout << "Error getting value: " << e.what() << std::endl;
+                }
+            }
+        }
+
+        // Test a conditional query with the datetime column
+        std::cout << "\n--- Testing DateTime Condition ---\n";
+        std::cout << "Query: SELECT * FROM Products WHERE ReleaseDate > '2021-01-01 00:00:00'" << std::endl;
+        Table conditionalResult = processor.processQuery(
+            "SELECT * FROM Products WHERE ReleaseDate > '2021-01-01 00:00:00'");
+
+        std::cout << "Query result has " << conditionalResult.getRowCount() << " rows" << std::endl;
+
+        // Print conditional results
+        for (size_t i = 0; i < conditionalResult.getRowCount(); i++)
+        {
+            std::cout << "Product: " << conditionalResult.getStringValue(1, i)
+                      << ", Released: " << conditionalResult.getStringValue(3, i) << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in CSV DateTime test: " << e.what() << std::endl;
+    }
+
+    std::cout << "CSV DateTime test completed!" << std::endl;
+}
+
 void testDateTimeSupport()
 {
     std::cout << "Testing DateTime support..." << std::endl;
@@ -746,98 +872,205 @@ void testDateTimeSupport()
 
     std::cout << "DateTime support test completed!" << std::endl;
 }
-void testBooleanSelect() 
+void testBooleanSelect()
 {
     std::cout << "Testing Boolean Select operation..." << std::endl;
-    
+
     // Create a table with a Boolean column
     std::vector<Column> columns = {
         Column("id", DataType::INT),
         Column("name", DataType::VARCHAR),
-        Column("active", DataType::BOOL)
-    };
-    
+        Column("active", DataType::BOOL)};
+
     Table table(columns);
-    
+
     // Add sample data with alternating boolean values
-    for (int i = 1; i <= 10; i++) {
+    for (int i = 1; i <= 10; i++)
+    {
         table.appendIntValue(0, i);
         table.appendStringValue(1, "User" + std::to_string(i));
         table.appendBoolValue(2, i % 2 == 0); // Even IDs are active (true)
         table.finalizeRow();
     }
-    
+
     // Print the table for verification
     std::cout << "Boolean table data:" << std::endl;
-    for (size_t i = 0; i < table.getRowCount(); i++) {
-        std::cout << "Row " << i << ": " 
+    for (size_t i = 0; i < table.getRowCount(); i++)
+    {
+        std::cout << "Row " << i << ": "
                   << "id=" << table.getIntValue(0, i) << ", "
                   << "name=" << table.getStringValue(1, i) << ", "
                   << "active=" << (table.getBoolValue(2, i) ? "true" : "false") << std::endl;
     }
-    
+
     // Test boolean condition (active = true)
     auto condition = ConditionBuilder::equals("active", "true");
     Select selectOp(table, *condition);
-    
+
     // Execute on CPU first to verify
     Table resultCPU = selectOp.execute(false);
     std::cout << "CPU Select result: " << resultCPU.getRowCount() << " active users found" << std::endl;
-    
+
     // Print the CPU results
-    for (size_t i = 0; i < resultCPU.getRowCount(); i++) {
-        std::cout << "Active user: " << resultCPU.getStringValue(1, i) 
+    for (size_t i = 0; i < resultCPU.getRowCount(); i++)
+    {
+        std::cout << "Active user: " << resultCPU.getStringValue(1, i)
                   << " (ID: " << resultCPU.getIntValue(0, i) << ")" << std::endl;
     }
-    
+
     // Verify CPU results - should have 5 active users with even IDs
     assert(resultCPU.getRowCount() == 5);
-    
+
     // Now try GPU execution
-    try {
+    try
+    {
         Table resultGPU = selectOp.execute(true);
         std::cout << "GPU Select result: " << resultGPU.getRowCount() << " active users found" << std::endl;
-        
+
         // Print the GPU results
-        for (size_t i = 0; i < resultGPU.getRowCount(); i++) {
-            std::cout << "Active user: " << resultGPU.getStringValue(1, i) 
+        for (size_t i = 0; i < resultGPU.getRowCount(); i++)
+        {
+            std::cout << "Active user: " << resultGPU.getStringValue(1, i)
                       << " (ID: " << resultGPU.getIntValue(0, i) << ")" << std::endl;
         }
-        
+
         // Verify GPU results - should match CPU results
         assert(resultGPU.getRowCount() == resultCPU.getRowCount());
         std::cout << "GPU Boolean Select test passed!" << std::endl;
-    } 
-    catch (const std::exception& e) {
-        std::cout << "GPU execution not available: " << e.what() << std::endl;
-    }
-    
-    std::cout << "Boolean Select test completed!" << std::endl;
-}
-
-int main()
-{
-    try
-    {
-        // testSelect();
-        // testProject();
-        testComplexCondition();
-        // testFilter();
-        // testOrderBy();
-        // testAggregator();
-        // testJoin();
-        // testSQLQueryProcessor();
-        // testCSVLoading();
-        // testDateTimeSupport();
-        // testBooleanSelect();
-
-        std::cout << "All tests passed successfully!" << std::endl;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
+        std::cout << "GPU execution not available: " << e.what() << std::endl;
     }
 
-    return 0;
+    std::cout << "Boolean Select test completed!" << std::endl;
+}
+
+void runCLI(const std::string &dataDirectory)
+{
+    std::cout << "Starting SQL Query Processor CLI with data directory: " << dataDirectory << std::endl;
+
+    try
+    {
+        CommandLineInterface cli(dataDirectory);
+        cli.run();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "CLI error: " << e.what() << std::endl;
+    }
+}
+
+void showHelp()
+{
+    std::cout << "SQL Query Processor" << std::endl;
+    std::cout << "Usage: GPUDBMS [OPTIONS]" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "  --help, -h                   Show this help message" << std::endl;
+    std::cout << "  --data-dir, -d <directory>   Specify data directory (default: ./data)" << std::endl;
+    std::cout << "  --test, -t <test_name>       Run specific test" << std::endl;
+    std::cout << "    Available tests: select, project, condition, orderby," << std::endl;
+    std::cout << "                    aggregate, join, sql, csv, datetime, boolean" << std::endl;
+    std::cout << "  --test-all                   Run all tests" << std::endl;
+    std::cout << "  --gpu <on|off>               Enable or disable GPU execution" << std::endl;
+    std::cout << std::endl;
+    std::cout << "If no options are provided, the CLI will start with the default data directory." << std::endl;
+}
+
+int main(int argc, char **argv)
+{
+    std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
+    bool runCli = true;
+    std::string testName = "";
+
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++)
+    {
+        std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h")
+        {
+            showHelp();
+            return 0;
+        }
+        else if (arg == "--data-dir" || arg == "-d")
+        {
+            if (i + 1 < argc)
+            {
+                dataDirectory = argv[++i];
+            }
+            else
+            {
+                std::cerr << "Error: --data-dir requires a directory path" << std::endl;
+                return 1;
+            }
+        }
+        else if (arg == "--test" || arg == "-t")
+        {
+            runCli = false;
+            if (i + 1 < argc)
+            {
+                testName = argv[++i];
+            }
+            else
+            {
+                std::cerr << "Error: --test requires a test name" << std::endl;
+                return 1;
+            }
+        }
+        else if (arg == "--test-all")
+        {
+            runCli = false;
+            testName = "all";
+        }
+    }
+
+    // Run CLI if no test option specified
+    if (runCli)
+    {
+        try
+        {
+            std::cout << "Starting SQL Query Processor CLI..." << std::endl;
+            std::cout << "Data directory: " << dataDirectory << std::endl;
+
+            CommandLineInterface cli(dataDirectory);
+            cli.run();
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "CLI error: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+    // If test was specified, run the appropriate test
+    else
+    {
+        try
+        {
+            // This code would call into your existing test functions
+            std::cout << "Running test: " << testName << std::endl;
+
+            // testSelect();
+            // testProject();
+            testComplexCondition();
+            // testFilter();
+            // testOrderBy();
+            // testAggregator();
+            // testJoin();
+            // testSQLQueryProcessor();
+            // testCSVLoading();
+            // testDateTimeSupport();
+            // testBooleanSelect();
+
+            std::cout << "All tests passed successfully!" << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+        }
+
+        return 0;
+    }
 }

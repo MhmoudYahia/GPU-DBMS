@@ -360,6 +360,25 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
     return conditions;
 }
 
+// // Helper function to get the size of different data types
+// size_t getTypeSize(GPUDBMS::DataType type) {
+//     switch (type) {
+//         case GPUDBMS::DataType::INT:
+//             return sizeof(int);
+//         case GPUDBMS::DataType::FLOAT:
+//             return sizeof(float);
+//         case GPUDBMS::DataType::DOUBLE:
+//             return sizeof(double);
+//         case GPUDBMS::DataType::BOOL:
+//             return sizeof(bool);
+//         case GPUDBMS::DataType::STRING:
+//         case GPUDBMS::DataType::VARCHAR:
+//             return 256; // Assuming fixed size for strings
+//         default:
+//             return 0;
+//     }
+// }
+
 extern "C" GPUDBMS::Table launchSelectKernel(
     const GPUDBMS::Table &m_inputTable,
     const GPUDBMS::Condition &m_condition)

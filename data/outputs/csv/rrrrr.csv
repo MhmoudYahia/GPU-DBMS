@@ -1,0 +1,6 @@
+address_id (N),student_id (N),address (T),city (T),postal_code (T)
+1,1,"123 Main St","New York","10001"
+2,2,"456 Elm St","Los Angeles","90001"
+3,3,"789 Oak St","Chicago","60601"
+4,4,"321 Pine St","Houston","77001"
+5,5,"654 Maple St","Phoenix","85001"
