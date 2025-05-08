@@ -82,6 +82,7 @@ namespace GPUDBMS
         // Find the index of the column in columnIndices
         auto it = columnNameToIndex.find(m_columnName);
 
+        printf("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHns2t");
         if (it == columnNameToIndex.end())
         {
             return false; // Column not found
@@ -538,7 +539,7 @@ namespace GPUDBMS
     {
         // Find indices of left and right columns
         auto leftIt = columnNameToIndex.find(m_leftColumn);
-        auto rightIt = columnNameToIndex.find(m_rightColumn);
+        auto rightIt = columnNameToIndex.find("right_" + m_rightColumn);
 
         if (leftIt == columnNameToIndex.end() || rightIt == columnNameToIndex.end())
         {

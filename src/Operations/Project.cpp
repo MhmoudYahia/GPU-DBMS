@@ -20,7 +20,7 @@ namespace GPUDBMS
             int index = m_inputTable.getColumnIndex(columnName);
             if (index < 0)
             {
-                throw std::runtime_error("Column not found: " + columnName);
+                throw std::runtime_error("Project -> Column not found: " + columnName);
             }
             m_columnIndices.push_back(index);
         }

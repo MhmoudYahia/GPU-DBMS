@@ -59,10 +59,11 @@ namespace GPUDBMS
          */
         const std::string &getName() const;
 
-        void setName(const std::string& newName) {
+        void setName(const std::string &newName)
+        {
             m_name = newName;
         }
-        
+
         /**
          * @brief Get the data type of the column
          *
@@ -155,7 +156,6 @@ namespace GPUDBMS
             append(typedSource.getValue(rowIndex));
         }
 
-
         void reserve(size_t count) override
         {
             m_data.reserve(count);
@@ -240,6 +240,46 @@ namespace GPUDBMS
          * @param column The column definition to add
          */
         void addColumn(const Column &column);
+
+        void printTableInfo() const
+        {
+            std::cout << "Table Info:" << std::endl;
+            for (const auto &column : m_columns)
+            {
+                std::cout << "Column Name: " << column.getName() << ", Type: " << std::endl;
+                switch (column.getType())
+                {
+                case DataType::INT:
+                    std::cout << "INT" << std::endl;
+                    break;
+                case DataType::FLOAT:
+                    std::cout << "FLOAT" << std::endl;
+                    break;
+                case DataType::DOUBLE:
+                    std::cout << "DOUBLE" << std::endl;
+                    break;
+                case DataType::VARCHAR:
+                    std::cout << "VARCHAR" << std::endl;
+                    break;
+                case DataType::STRING:
+                    std::cout << "STRING" << std::endl;
+                    break;
+                case DataType::BOOL:
+                    std::cout << "BOOL" << std::endl;
+                    break;
+                case DataType::DATE:    
+                    std::cout << "DATE" << std::endl;
+                    break;
+                case DataType::DATETIME:
+                    std::cout << "DATETIME" << std::endl;
+                    break;
+                default:
+                    std::cout << "UNKNOWN" << std::endl;
+                    break;
+                }
+                
+            }
+        }
 
         /**
          * @brief Set column data using a template for different data types
@@ -490,6 +530,8 @@ namespace GPUDBMS
                 columnData->reserve(rowCount);
             }
         }
+
+        std::unordered_map<std::string, int> getColumnNameToIndex() const;
 
     private:
         std::vector<Column>

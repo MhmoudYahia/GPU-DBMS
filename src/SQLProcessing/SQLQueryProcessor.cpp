@@ -292,10 +292,12 @@ namespace GPUDBMS
     Table &SQLQueryProcessor::getTable(const std::string &name)
     {
         auto it = tables.find(name);
+
         if (it == tables.end())
         {
             throw std::runtime_error("Table not found: " + name);
         }
+
         return it->second;
     }
 
@@ -328,47 +330,35 @@ namespace GPUDBMS
             // Translate the join condition
             auto joinCondition = translateWhereCondition(join->condition);
 
-            // Determine join type
-            JoinType joinType;
-            switch (join->type)
-            {
-            case hsql::kJoinInner:
-                joinType = JoinType::INNER;
-                break;
-            case hsql::kJoinLeft:
-                joinType = JoinType::LEFT;
-                break;
-            case hsql::kJoinRight:
-                joinType = JoinType::RIGHT;
-                break;
-            default:
-                throw std::runtime_error("Unsupported join type");
-            }
+    
 
             // Execute the join
-            Join joinOp(leftTable, rightTable, *joinCondition, joinType);
-            resultTable = joinOp.execute(useGPU);
+            // Join joinOp(leftTable, rightTable, *joinCondition, joinType);
+            Join joinOp(leftTable, rightTable, *joinCondition);
+
+            resultTable = joinOp.execute(useGPU && false);
         }
-        else if (stmt->fromTable->type == hsql::kTableCrossProduct)
-        {
-            // Handle comma-separated tables (implicit join)
-            // For each table in the cross product, join them one by one
-            resultTable = getTable(stmt->fromTable->list->at(0)->name);
+        // else if (stmt->fromTable->type == hsql::kTableCrossProduct)
+        // {
+        //     printf("Cross product detected\n");
+        //     // Handle comma-separated tables (implicit join)
+        //     // For each table in the cross product, join them one by one
+        //     resultTable = getTable(stmt->fromTable->list->at(0)->name);
 
-            // Start from the second table in the list
-            for (size_t i = 1; i < stmt->fromTable->list->size(); i++)
-            {
-                Table rightTable = getTable(stmt->fromTable->list->at(i)->name);
+        //     // Start from the second table in the list
+        //     for (size_t i = 1; i < stmt->fromTable->list->size(); i++)
+        //     {
+        //         Table rightTable = getTable(stmt->fromTable->list->at(i)->name);
 
-                // Create a dummy condition that always evaluates to true
-                // The real filtering will happen in the WHERE clause
-                auto dummyCondition = ConditionBuilder::equals("1", "1");
+        //         // Create a dummy condition that always evaluates to true
+        //         // The real filtering will happen in the WHERE clause
+        //         auto dummyCondition = ConditionBuilder::equals("1", "1");
 
-                // Execute cross join (which is effectively what comma does)
-                Join joinOp(resultTable, rightTable, *dummyCondition, JoinType::INNER);
-                resultTable = joinOp.execute(useGPU);
-            }
-        }
+        //         // Execute cross join (which is effectively what comma does)
+        //         Join joinOp(resultTable, rightTable, *dummyCondition);
+        //         resultTable = joinOp.execute(useGPU);
+        //     }
+        // }
         else
         {
             throw std::runtime_error("Unsupported FROM clause type");
@@ -502,12 +492,16 @@ namespace GPUDBMS
             }
 
             Aggregator aggregator(resultTable, aggregations, groupByColumn);
-            resultTable = aggregator.execute(useGPU);
+            resultTable = aggregator.execute(useGPU && false);
         }
         // If no aggregation, handle normal SELECT (projection)
-        else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
+        else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar && false)
         {
             std::vector<std::string> projectColumns;
+            for (auto &col : *stmt->selectList)
+            {
+                std::cout << "Column: " << col->name << std::endl;
+            }
             for (const hsql::Expr *expr : *stmt->selectList)
             {
                 if (expr->type == hsql::kExprColumnRef)
@@ -531,8 +525,9 @@ namespace GPUDBMS
 
             if (!projectColumns.empty())
             {
+                resultTable.printTableInfo();
                 Project projectOp(resultTable, projectColumns);
-                resultTable = projectOp.execute(useGPU);
+                resultTable = projectOp.execute(useGPU && false);
             }
         }
 
@@ -547,7 +542,7 @@ namespace GPUDBMS
                 {
                     SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
                     OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
-                    resultTable = orderByOp.execute(useGPU);
+                    resultTable = orderByOp.execute(useGPU && false);
                 }
                 else
                 {
@@ -574,7 +569,7 @@ namespace GPUDBMS
                 }
 
                 OrderBy orderByOp(resultTable, sortColumns, sortOrders);
-                resultTable = orderByOp.execute(useGPU);
+                resultTable = orderByOp.execute(useGPU && false);
             }
         }
 
@@ -610,6 +605,9 @@ namespace GPUDBMS
             {
                 std::string leftColumn = expr->expr->name;
                 std::string rightColumn = expr->expr2->name;
+
+                std::cout << "Left column: " << leftColumn << std::endl;
+                std::cout << "Right column: " << rightColumn << std::endl;
 
                 switch (expr->opType)
                 {

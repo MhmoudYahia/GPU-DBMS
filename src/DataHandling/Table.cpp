@@ -168,7 +168,7 @@ namespace GPUDBMS
         case GPUDBMS::DataType::INT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
-            colInfo.data = const_cast<int*>(col.getData().data());
+            colInfo.data = const_cast<int *>(col.getData().data());
             colInfo.count = col.size();
             colInfo.stride = sizeof(int); // Assuming int data is stored in a contiguous block
             break;
@@ -176,7 +176,7 @@ namespace GPUDBMS
         case GPUDBMS::DataType::FLOAT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
-            colInfo.data = const_cast<float*>(col.getData().data());
+            colInfo.data = const_cast<float *>(col.getData().data());
             colInfo.count = col.size();
             colInfo.stride = sizeof(float); // Assuming float data is stored in a contiguous block
             break;
@@ -184,7 +184,7 @@ namespace GPUDBMS
         case GPUDBMS::DataType::DOUBLE:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
-            colInfo.data = const_cast<double*>(col.getData().data());
+            colInfo.data = const_cast<double *>(col.getData().data());
             colInfo.count = col.size();
             colInfo.stride = sizeof(double); // Assuming double data is stored in a contiguous block
             break;
@@ -219,9 +219,10 @@ namespace GPUDBMS
             // Create a copy of the data since std::vector<bool> doesn't provide direct pointer access
             static std::vector<char> boolBuffer;
             boolBuffer.clear();
-            const auto& boolData = col.getData();
+            const auto &boolData = col.getData();
             boolBuffer.reserve(boolData.size());
-            for (bool val : boolData) {
+            for (bool val : boolData)
+            {
                 boolBuffer.push_back(val ? 1 : 0);
             }
             colInfo.data = boolBuffer.data();
@@ -254,7 +255,7 @@ namespace GPUDBMS
             colInfo.stride = maxStrLen;
             break;
         }
-           
+
             // Add cases for other data types as needed
         }
         return colInfo;
@@ -396,7 +397,14 @@ namespace GPUDBMS
         }
     }
 
-    
+    std::unordered_map<std::string, int> Table::getColumnNameToIndex() const
+    {
+        std::unordered_map<std::string, int> result;
+        for (const auto& pair : m_columnNameToIndex) {
+            result[pair.first] = static_cast<int>(pair.second);
+        }
+        return result;
+    }
 
     const std::vector<Column> &Table::getColumns() const
     {
@@ -479,7 +487,7 @@ namespace GPUDBMS
         int index = getColumnIndex(columnName);
         if (index == -1)
         {
-            throw std::runtime_error("Column not found: " + columnName);
+            throw std::runtime_error("Table -> Column not found: " + columnName);
         }
         return m_columns[index].getType();
     }
@@ -488,26 +496,29 @@ namespace GPUDBMS
     std::string Table::getDateTimeValue(size_t columnIndex, size_t rowIndex) const
     {
         const ColumnData &column = getColumnData(columnIndex);
-                  
+
         // Accept either DATETIME/DATE or VARCHAR/STRING for datetime values
-        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE) {
+        if (column.getType() != DataType::DATETIME && column.getType() != DataType::DATE)
+        {
             // For non-datetime columns, still try to get the value if it's a string type
-            if (column.getType() == DataType::VARCHAR || column.getType() == DataType::STRING) {
+            if (column.getType() == DataType::VARCHAR || column.getType() == DataType::STRING)
+            {
                 const auto &typedColumn = static_cast<const ColumnDataImpl<std::string> &>(column);
                 std::string value = typedColumn.getValue(rowIndex);
-                
+
                 // Basic validation to ensure it looks like a date
-                if (isValidDateTime(value)) {
+                if (isValidDateTime(value))
+                {
                     return value;
                 }
-                
+
                 // std::cout << "Warning: Value '" << value << "' doesn't appear to be a valid datetime" << std::endl;
                 return value; // Return it anyway
             }
-            
+
             throw std::runtime_error("Column is not of type DATETIME or DATE and not a string type");
         }
-        
+
         const auto &typedColumn = static_cast<const ColumnDataImpl<std::string> &>(column);
         return typedColumn.getValue(rowIndex);
     }
@@ -545,7 +556,7 @@ namespace GPUDBMS
         int index = getColumnIndex(columnName);
         if (index == -1)
         {
-            throw std::runtime_error("Column not found: " + columnName);
+            throw std::runtime_error("Table -> Column not found: " + columnName);
         }
         return *m_columnData[index];
     }
@@ -555,7 +566,7 @@ namespace GPUDBMS
         int index = getColumnIndex(columnName);
         if (index == -1)
         {
-            throw std::runtime_error("Column not found: " + columnName);
+            throw std::runtime_error("Table -> Column not found: " + columnName);
         }
         return *m_columnData[index];
     }
@@ -641,7 +652,5 @@ namespace GPUDBMS
         resultTable.finalizeRow();
         return resultTable;
     }
-
-    
 
 } // namespace GPUDBMS

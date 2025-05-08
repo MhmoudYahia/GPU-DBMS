@@ -418,8 +418,7 @@ void testAggregator()
     std::vector<Aggregation> dateTime = {
         Aggregation(AggregateFunction::COUNT, "date", "count"),
         Aggregation(AggregateFunction::MAX, "date", "avg_date"),
-        Aggregation(AggregateFunction::MIN, "date", "min_date")
-    };
+        Aggregation(AggregateFunction::MIN, "date", "min_date")};
 
     Aggregator dateTimeAggregator(testTable, dateTime);
 
@@ -435,7 +434,6 @@ void testAggregator()
     //           << "\nExecution time: " << duration.count() << " ms" << std::endl;
     // assert(dateTimeResult.getRowCount() == 1);
     // assert(dateTimeResult.getColumnCount() == 3);
-
 
     // GPU execution test
     std::cout << "\n[5] Testing GPU execution..." << std::endl;
@@ -502,8 +500,6 @@ void testAggregator()
                   << "\nExecution time: " << duration.count() << " ms" << std::endl;
         assert(groupByResultGPU.getRowCount() == 2);
         assert(groupByResultGPU.getColumnCount() == 3);
-
-       
 
         std::cout << "GPU Aggregator test passed!" << std::endl;
     }
@@ -949,66 +945,214 @@ void showHelp()
     std::cout << "If no options are provided, the CLI will start with the default data directory." << std::endl;
 }
 
-
 void testProductOrderJoin()
 {
+
     std::cout << "=== Testing SalesOrders-Products JOIN ===" << std::endl;
-    
-    try 
+
+    try
     {
         // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
-        
+        SQLQueryProcessor processor("/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data");
+
         // Print table information to verify tables are loaded correctly
         std::cout << "\n--- Products Table Info ---" << std::endl;
         Table productsTable = processor.getTable("Products");
-        std::cout << "Products table loaded with " << productsTable.getRowCount() << " rows and " 
+        std::cout << "Products table loaded with " << productsTable.getRowCount() << " rows and "
                   << productsTable.getColumnCount() << " columns" << std::endl;
-        
+
         std::cout << "\n--- SalesOrders Table Info ---" << std::endl;
         Table salesOrdersTable = processor.getTable("SalesOrders");
-        std::cout << "SalesOrders table loaded with " << salesOrdersTable.getRowCount() << " rows and " 
+        std::cout << "SalesOrders table loaded with " << salesOrdersTable.getRowCount() << " rows and "
                   << salesOrdersTable.getColumnCount() << " columns" << std::endl;
-        
+
         std::cout << "\nExecuting query: SELECT o.Orders_id, o.CustomerName, p.ProductName, p.Price, o.TotalAmount "
                   << "FROM SalesOrders o JOIN Products p ON o.Products_id = p.Products_id" << std::endl;
 
         // Execute the query and measure performance
         auto start = std::chrono::high_resolution_clock::now();
-        
+
         Table result = processor.processQuery(
             "SELECT o.Orders_id, o.CustomerName, p.ProductName, p.Price, o.TotalAmount "
             "FROM SalesOrders o JOIN Products p ON o.Products_id = p.Products_id;");
-        
+
+        result.printTableInfo(); // Print table info for debugging
+
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        
+
         // Print the results
-        std::cout << "\nJOIN Result (" << result.getRowCount() << " rows) | Execution time: " 
+        std::cout << "\nJOIN Result (" << result.getRowCount() << " rows) | Execution time: "
                   << duration.count() << " ms" << std::endl;
-        
+
         // Display column names
         std::cout << "\nColumns: ";
-        for (size_t i = 0; i < result.getColumnCount(); i++) {
+        for (size_t i = 0; i < result.getColumnCount(); i++)
+        {
             std::cout << result.getColumnName(i);
-            if (i < result.getColumnCount() - 1) std::cout << ", ";
+            if (i < result.getColumnCount() - 1)
+                std::cout << ", ";
         }
         std::cout << std::endl;
-        
+
         // Print the first few result rows
-        size_t rowsToShow = std::min(result.getRowCount(), size_t(5));
-        for (size_t i = 0; i < rowsToShow; i++) {
+        for (size_t i = 0; i < result.getRowCount(); i++)
+        {
             std::cout << "Row " << i << ": ";
-            std::cout << "CustomerName=" << result.getStringValue(1, i) << ", ";
-            std::cout << "ProductName=" << result.getStringValue(2, i) << ", ";
-            std::cout << "Price=" << result.getDoubleValue(3, i) << ", ";
-            std::cout << "TotalAmount=" << result.getDoubleValue(4, i) << std::endl;
+            std::cout << "Orders_id=" << result.getDoubleValue(0, i)
+                      << ", CustomerName=" << result.getStringValue(1, i)
+                      << ", ProductName=" << result.getStringValue(7, i)
+                      << ", Price=" << result.getDoubleValue(8, i)
+                      << ", TotalAmount=" << result.getDoubleValue(2, i) << std::endl;
+          
         }
-        
+
         std::cout << "\nSalesOrders-Products JOIN test completed!" << std::endl;
     }
-    catch (const std::exception &e) {
+    catch (const std::exception &e)
+    {
         std::cerr << "Error in Product-Order JOIN test: " << e.what() << std::endl;
+    }
+}
+
+void testDirectJoin()
+{
+    std::cout << "=== Testing Direct Join Operation ===" << std::endl;
+
+    try
+    {
+        // Load tables directly from CSV files
+        std::string dataDir = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
+        CSVProcessor csvProcessor;
+
+        // Load SalesOrders table
+        std::cout << "\nLoading SalesOrders table from CSV..." << std::endl;
+        Table salesOrdersTable = csvProcessor.readCSV(dataDir + "/input_csvs/SalesOrders.csv");
+        std::cout << "SalesOrders table loaded with " << salesOrdersTable.getRowCount()
+                  << " rows and " << salesOrdersTable.getColumnCount() << " columns" << std::endl;
+
+        // Load Products table
+        std::cout << "\nLoading Products table from CSV..." << std::endl;
+        Table productsTable = csvProcessor.readCSV(dataDir + "/input_csvs/Products.csv");
+        std::cout << "Products table loaded with " << productsTable.getRowCount()
+                  << " rows and " << productsTable.getColumnCount() << " columns" << std::endl;
+
+        // Print sample data from both tables
+        std::cout << "\n--- SalesOrders Sample ---" << std::endl;
+        for (size_t i = 0; i < std::min(salesOrdersTable.getRowCount(), size_t(3)); i++)
+        {
+            std::cout << "Orders_id: " << salesOrdersTable.getDoubleValue(0, i)
+                      << ", CustomerName: " << salesOrdersTable.getStringValue(1, i)
+                      << ", Products_id: " << salesOrdersTable.getDoubleValue(4, i) << std::endl;
+        }
+
+        std::cout << "\n--- Products Sample ---" << std::endl;
+        for (size_t i = 0; i < std::min(productsTable.getRowCount(), size_t(3)); i++)
+        {
+            std::cout << "Products_id: " << productsTable.getDoubleValue(0, i)
+                      << ", ProductName: " << productsTable.getStringValue(1, i)
+                      << ", Price: " << productsTable.getDoubleValue(2, i) << std::endl;
+        }
+
+        // Create join condition: SalesOrders.Products_id = Products.Products_id
+        auto condition = ConditionBuilder::columnEquals("Products_id", "Products_id");
+
+        // Create and execute the join
+        std::cout << "\nExecuting JOIN operation directly..." << std::endl;
+        Join joinOp(salesOrdersTable, productsTable, *condition);
+
+        auto start = std::chrono::high_resolution_clock::now();
+        Table joinResult = joinOp.execute(false); // Use CPU implementation
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        std::cout << "JOIN completed with " << joinResult.getRowCount()
+                  << " rows in " << duration.count() << " ms" << std::endl;
+
+        // Print column names of the result
+        std::cout << "\n--- Join Result Columns ---" << std::endl;
+        for (size_t i = 0; i < joinResult.getColumnCount(); i++)
+        {
+            std::cout << i << ": " << joinResult.getColumnName(i)
+                      << " (" << getDataTypeName(joinResult.getColumnType(i)) << ")" << std::endl;
+        }
+
+        // Print a few rows from the join result
+        std::cout << "\n--- Join Result Sample ---" << std::endl;
+        size_t resultColCount = joinResult.getColumnCount();
+        size_t rightProductNameIdx = 0;
+        size_t rightPriceIdx = 0;
+        size_t rightProductIdIdx = 0;
+
+        // Find right table column indices (they might have been renamed)
+        for (size_t i = 0; i < resultColCount; i++)
+        {
+            std::string colName = joinResult.getColumnName(i);
+            if (colName == "ProductName" && i >= salesOrdersTable.getColumnCount())
+            {
+                rightProductNameIdx = i;
+            }
+            else if (colName == "Price" && i >= salesOrdersTable.getColumnCount())
+            {
+                rightPriceIdx = i;
+            }
+            else if (colName == "Products_id" && i >= salesOrdersTable.getColumnCount())
+            {
+                rightProductIdIdx = i;
+            }
+        }
+
+        for (size_t i = 0; i < joinResult.getRowCount(); i++)
+        // for (size_t i = 0; i < 5; i++)
+
+        {
+            std::cout << "Row " << i << ": "
+                      << "Orders_id=" << joinResult.getDoubleValue(0, i)
+                      << ", CustomerName=" << joinResult.getStringValue(1, i)
+                      << ", Products_id=" << joinResult.getDoubleValue(4, i);
+
+            // Add right table columns if found
+            if (rightProductNameIdx > 0)
+            {
+                std::cout << ", ProductName=" << joinResult.getStringValue(rightProductNameIdx, i);
+            }
+            if (rightPriceIdx > 0)
+            {
+                std::cout << ", Price=" << joinResult.getDoubleValue(rightPriceIdx, i);
+            }
+
+            std::cout << std::endl;
+        }
+
+        // Verify expected results
+        std::cout << "\n--- Validation ---" << std::endl;
+        // We should get one row for each valid Products_id match
+        std::unordered_map<int, bool> matchedProducts;
+        for (size_t i = 0; i < joinResult.getRowCount(); i++)
+        {
+            int leftProductId = joinResult.getDoubleValue(4, i); // SalesOrders.Products_id
+
+            if (rightProductIdIdx > 0)
+            {
+                int rightProductId = joinResult.getDoubleValue(rightProductIdIdx, i);
+
+                // Verify join condition is satisfied
+                if (leftProductId != rightProductId)
+                {
+                    std::cout << "ERROR: Join condition violated! " << leftProductId
+                              << " != " << rightProductId << std::endl;
+                }
+            }
+
+            matchedProducts[leftProductId] = true;
+        }
+
+        std::cout << "Found " << matchedProducts.size() << " unique product IDs in join result" << std::endl;
+        std::cout << "Direct Join test completed successfully!" << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in Direct Join test: " << e.what() << std::endl;
     }
 }
 
@@ -1088,7 +1232,7 @@ int main(int argc, char **argv)
             // std::cout << "Running test: " << testName << std::endl;
 
             // testSelect();
-            testProject();
+            // testProject();
             // testProject();
             // testComplexCondition();
             // testFilter();
@@ -1097,13 +1241,15 @@ int main(int argc, char **argv)
             // testJoin();
             // testEmployeeOrderJoin();
             testProductOrderJoin();
+            // testDirectJoin();
             // testSQLQueryProcessor();
             // testCSVLoading();
             // testDateTimeSupport();
             // testBooleanSelect();
             // testCSVDateTimeSupport();
 
-            std::cout << "All tests passed successfully!" << std::endl;
+            std::cout
+                << "All tests passed successfully!" << std::endl;
         }
         catch (const std::exception &e)
         {
