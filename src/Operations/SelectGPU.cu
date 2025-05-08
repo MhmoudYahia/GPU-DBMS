@@ -475,7 +475,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
             delete[] static_cast<char *>(cond.columnInfo.data);
 
             cond.columnInfo.data = d_buffer;
-            break;
+            // break;
         }
         else
         {
@@ -637,15 +637,7 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b)
     }
 }
 
-__device__ int device_strcmp(const char *a, const char *b)
-{
-    while (*a && *a == *b)
-    {
-        a++;
-        b++;
-    }
-    return *a - *b;
-}
+
 
 __device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b)
 {

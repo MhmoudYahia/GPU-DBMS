@@ -26,6 +26,7 @@ Table createTestTable()
         Column("age", DataType::INT),
         Column("salary", DataType::DOUBLE),
         Column("isEmployed", DataType::BOOL),
+        Column("date", DataType::DATETIME),
     };
 
     Table table(columns);
@@ -36,6 +37,7 @@ Table createTestTable()
     auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
     auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
     auto &isEmployedCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("isEmployed"));
+    auto &dateCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("date"));
 
     for (int i = 1; i <= 10000000; i++)
     {
@@ -44,6 +46,7 @@ Table createTestTable()
         ageCol.append(i);
         salaryCol.append(i);
         isEmployedCol.append(i % 2 == 0);
+        dateCol.append("2023-10-" + std::to_string(i % 30 + 1) + " 12:00:00"); // Example datetime format
 
         // Finalize each row after adding all column values
         table.finalizeRow();
@@ -391,6 +394,28 @@ void testAggregator()
               << " | Group 1 count: " << groupByResult.getIntValue(1, 1)
               << "\nExecution time: " << duration.count() << " ms" << std::endl;
 
+    std::vector<Aggregation> dateTime = {
+        Aggregation(AggregateFunction::COUNT, "date", "count"),
+        Aggregation(AggregateFunction::MAX, "date", "avg_date"),
+        Aggregation(AggregateFunction::MIN, "date", "min_date")
+    };
+
+    Aggregator dateTimeAggregator(testTable, dateTime);
+
+    // start_time = std::chrono::high_resolution_clock::now();
+    // // Table dateTimeResult = dateTimeAggregator.executeCPU();
+    // end_time = std::chrono::high_resolution_clock::now();
+
+    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+    // std::cout << "DateTime COUNT result: " << dateTimeResult.getIntValue(0, 0)
+    //           << " | DateTime MAX result: " << dateTimeResult.getStringValue(1, 0)
+    //           << " | DateTime MIN result: " << dateTimeResult.getStringValue(2, 0)
+    //           << "\nExecution time: " << duration.count() << " ms" << std::endl;
+    // assert(dateTimeResult.getRowCount() == 1);
+    // assert(dateTimeResult.getColumnCount() == 3);
+
+
     // GPU execution test
     std::cout << "\n[5] Testing GPU execution..." << std::endl;
     try
@@ -434,6 +459,19 @@ void testAggregator()
         assert(minMaxResultGPU.getIntValue(1, 0) == 10000000);
 
         start_time = std::chrono::high_resolution_clock::now();
+        Table dateTimeResultGPU = dateTimeAggregator.execute(USE_GPU);
+        end_time = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+        std::cout << "GPU DateTime COUNT result: " << dateTimeResultGPU.getIntValue(0, 0)
+                  << " | GPU DateTime MAX result: " << dateTimeResultGPU.getStringValue(1, 0)
+                  << " | GPU DateTime MIN result: " << dateTimeResultGPU.getStringValue(2, 0)
+                  << "\nExecution time: " << duration.count() << " ms" << std::endl;
+
+        assert(dateTimeResultGPU.getRowCount() == 1);
+        assert(dateTimeResultGPU.getColumnCount() == 3);
+
+        start_time = std::chrono::high_resolution_clock::now();
         Table groupByResultGPU = groupByAggregator.execute(USE_GPU);
         end_time = std::chrono::high_resolution_clock::now();
 
@@ -443,8 +481,8 @@ void testAggregator()
                   << "\nExecution time: " << duration.count() << " ms" << std::endl;
         assert(groupByResultGPU.getRowCount() == 2);
         assert(groupByResultGPU.getColumnCount() == 3);
-        // assert(groupByResultGPU.getIntValue(0, 1) == 5000000);
-        // assert(groupByResultGPU.getIntValue(1, 1) == 5000000);
+
+       
 
         std::cout << "GPU Aggregator test passed!" << std::endl;
     }
@@ -1053,10 +1091,10 @@ int main(int argc, char **argv)
 
             // testSelect();
             // testProject();
-            testComplexCondition();
+            // testComplexCondition();
             // testFilter();
             // testOrderBy();
-            // testAggregator();
+            testAggregator();
             // testJoin();
             // testSQLQueryProcessor();
             // testCSVLoading();

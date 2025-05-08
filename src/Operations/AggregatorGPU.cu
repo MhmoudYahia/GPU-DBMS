@@ -56,6 +56,13 @@ __device__ static double atomicMaxDouble(double *address, double val)
     return __longlong_as_double(old);
 }
 
+__device__ void device_strcpy(char *dest, const char *src)
+{
+    while ((*dest++ = *src++))
+    {
+    }
+}
+
 __global__ void aggregationKernel(
     int numRows,
     int numAggregations,
@@ -64,6 +71,36 @@ __global__ void aggregationKernel(
     bool *filterFlags)
 {
     extern __shared__ char sharedMemory[];
+
+    // Calculate required shared memory sizes
+    size_t sharedMemPerAgg = 0;
+    for (int aggIdx = 0; aggIdx < numAggregations; aggIdx++)
+    {
+        const AggregationInfo &agg = aggregations[aggIdx];
+        switch (agg.dataType)
+        {
+        case GPUDBMS::DataType::INT:
+            sharedMemPerAgg = (sharedMemPerAgg > sizeof(int)) ? sharedMemPerAgg : sizeof(int);
+            break;
+        case GPUDBMS::DataType::FLOAT:
+            sharedMemPerAgg = (sharedMemPerAgg > sizeof(float)) ? sharedMemPerAgg : sizeof(float);
+            break;
+        case GPUDBMS::DataType::DOUBLE:
+            sharedMemPerAgg = (sharedMemPerAgg > sizeof(double)) ? sharedMemPerAgg : sizeof(double);
+            break;
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+            sharedMemPerAgg = (sharedMemPerAgg > (size_t)256) ? sharedMemPerAgg : (size_t)256;
+            break;
+        case GPUDBMS::DataType::DATETIME:
+            sharedMemPerAgg = (sharedMemPerAgg > (size_t)20) ? sharedMemPerAgg : (size_t)20;
+            break;
+        case GPUDBMS::DataType::DATE:
+            sharedMemPerAgg = (sharedMemPerAgg > sizeof(int)) ? sharedMemPerAgg : sizeof(int);
+            break;
+        }
+    }
+
 
     int groupId = groupBy ? blockIdx.x : 0;
     int numGroups = groupBy ? groupBy->numGroups : 1;
@@ -82,6 +119,7 @@ __global__ void aggregationKernel(
     for (int aggIdx = 0; aggIdx < numAggregations; aggIdx++)
     {
         const AggregationInfo &agg = aggregations[aggIdx];
+        char *aggSharedMem = &sharedMemory[aggIdx * sharedMemPerAgg];
 
         switch (agg.type)
         {
@@ -113,6 +151,25 @@ __global__ void aggregationKernel(
             {
                 *((double *)&sharedMemory[aggIdx * sizeof(double)]) = DBL_MAX;
             }
+            else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                     agg.dataType == GPUDBMS::DataType::VARCHAR)
+            {
+                // Initialize to a large string value
+                char *str = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                memset(str, 0, sizeof(char) * 256);
+            }
+            else if (agg.dataType == GPUDBMS::DataType::DATE)
+            {
+                // Initialize to a large date value
+                *((int *)&sharedMemory[aggIdx * sizeof(int)]) = INT_MAX; // Assuming date is stored as an int
+            }
+            else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+            {
+                // char *str = (char *)&sharedMemory[aggIdx * sizeof(char) * 20];
+                // Initialize to "9999-12-31 23:59:59" (max datetime)
+                // device_strcpy(str, "9999-12-31 23:59:59");
+                device_strcpy(aggSharedMem, "9999-12-31 23:59:59");
+            }
             break;
         case AggregateFunction::MAX:
             if (agg.dataType == GPUDBMS::DataType::INT)
@@ -126,6 +183,25 @@ __global__ void aggregationKernel(
             else if (agg.dataType == GPUDBMS::DataType::DOUBLE)
             {
                 *((double *)&sharedMemory[aggIdx * sizeof(double)]) = -DBL_MAX; // Use -DBL_MAX instead of DBL_MIN
+            }
+            else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                     agg.dataType == GPUDBMS::DataType::VARCHAR)
+            {
+                // Initialize to a small string value
+                char *str = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                memset(str, 0, sizeof(char) * 256);
+            }
+            else if (agg.dataType == GPUDBMS::DataType::DATE)
+            {
+                // Initialize to a small date value
+                *((int *)&sharedMemory[aggIdx * sizeof(int)]) = INT_MIN; // Assuming date is stored as an int
+            }
+            else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+            {
+                // char *str = (char *)&sharedMemory[aggIdx * sizeof(char) * 20];
+                // Initialize to "0000-01-01 00:00:00" (min datetime)
+                // device_strcpy(str, "0000-01-01 00:00:00");
+                device_strcpy(aggSharedMem, "0000-01-01 00:00:00");
             }
             break;
         case AggregateFunction::COUNT:
@@ -160,6 +236,7 @@ __global__ void aggregationKernel(
         for (int aggIdx = 0; aggIdx < numAggregations; aggIdx++)
         {
             const AggregationInfo &agg = aggregations[aggIdx];
+            char *aggSharedMem = &sharedMemory[aggIdx * sharedMemPerAgg];
 
             switch (agg.type)
             {
@@ -200,6 +277,35 @@ __global__ void aggregationKernel(
                     const double *data = static_cast<const double *>(agg.inputData);
                     atomicMinDouble((double *)&sharedMemory[aggIdx * sizeof(double)], data[row]);
                 }
+                else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                         agg.dataType == GPUDBMS::DataType::VARCHAR)
+                {
+                    // Handle string min
+                    char *data = (char *)agg.inputData;
+                    char *minStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                    if (device_strcmp(data + row * 256, minStr) < 0)
+                    {
+                        device_strcpy(minStr, data + row * 256);
+                    }
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATE)
+                {
+                    // Handle date min
+                    const int *data = static_cast<const int *>(agg.inputData);
+                    atomicMin((int *)&sharedMemory[aggIdx * sizeof(int)], data[row]);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+                {
+                    const char *rowData = ((const char *)agg.inputData) + row * 20; // Use actual stride
+
+                    // char *data = (char *)agg.inputData;
+                    // char *minStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 20];
+                    
+                    if(device_datetime_cmp(rowData, aggSharedMem) < 0)
+                    {
+                        device_strcpy(aggSharedMem, rowData);
+                    }
+                }
                 break;
             }
             case AggregateFunction::MAX:
@@ -219,11 +325,45 @@ __global__ void aggregationKernel(
                     const double *data = static_cast<const double *>(agg.inputData);
                     atomicMaxDouble((double *)&sharedMemory[aggIdx * sizeof(double)], data[row]);
                 }
+                else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                         agg.dataType == GPUDBMS::DataType::VARCHAR)
+                {
+                    // Handle string max
+                    char *data = (char *)agg.inputData;
+                    char *maxStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                    if (device_strcmp(data + row * 256, maxStr) > 0)
+                    {
+                        device_strcpy(maxStr, data + row * 256);
+                    }
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATE)
+                {
+                    // Handle date max
+                    const int *data = static_cast<const int *>(agg.inputData);
+                    atomicMax((int *)&sharedMemory[aggIdx * sizeof(int)], data[row]);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+                {
+                    // char *data = (char *)agg.inputData;
+                    // char *maxStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 20];
+                    // if (device_datetime_cmp(data + row * 20, maxStr) > 0)
+                    // {
+                    //     device_strcpy(maxStr, data + row * 20);
+                    // }
+
+                    const char *rowData = ((const char *)agg.inputData) + row * 20; // Use actual stride
+
+                    if(device_datetime_cmp(rowData, aggSharedMem) > 0)
+                    {
+                        device_strcpy(aggSharedMem, rowData);
+                    }
+                }
                 break;
             }
             case AggregateFunction::COUNT:
             {
                 atomicAdd((int *)&sharedMemory[aggIdx * sizeof(int)], 1);
+
                 break;
             }
             }
@@ -254,6 +394,25 @@ __global__ void aggregationKernel(
                 else if (agg.dataType == GPUDBMS::DataType::DOUBLE)
                 {
                     ((double *)agg.outputData)[groupId] = *((double *)&sharedMemory[aggIdx * sizeof(double)]);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                         agg.dataType == GPUDBMS::DataType::VARCHAR)
+                {
+                    // Handle string output
+                    char *str = (char *)agg.outputData;
+                    char *resultStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                    device_strcpy(str + groupId * 256, resultStr);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATE)
+                {
+                    ((int *)agg.outputData)[groupId] = *((int *)&sharedMemory[aggIdx * sizeof(int)]);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+                {
+                    // Handle datetime output
+                    char *str = (char *)agg.outputData;
+                    char *resultStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 20]; // Assuming max datetime string length of 20
+                    device_strcpy(str + groupId * 20, resultStr);
                 }
                 break;
             }
@@ -306,6 +465,25 @@ __global__ void aggregationKernel(
                 {
                     ((double *)agg.outputData)[groupId] = *((double *)&sharedMemory[aggIdx * sizeof(double)]);
                 }
+                else if (agg.dataType == GPUDBMS::DataType::STRING ||
+                         agg.dataType == GPUDBMS::DataType::VARCHAR)
+                {
+                    // Handle string output
+                    char *str = (char *)agg.outputData;
+                    char *resultStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 256]; // Assuming max string length of 256
+                    device_strcpy(str + groupId * 256, resultStr);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATE)
+                {
+                    ((int *)agg.outputData)[groupId] = *((int *)&sharedMemory[aggIdx * sizeof(int)]);
+                }
+                else if (agg.dataType == GPUDBMS::DataType::DATETIME)
+                {
+                    // Handle datetime output
+                    char *str = (char *)agg.outputData;
+                    char *resultStr = (char *)&sharedMemory[aggIdx * sizeof(char) * 20]; // Assuming max datetime string length of 20
+                    device_strcpy(str + groupId * 20, resultStr);
+                }
                 break;
             }
             }
@@ -341,12 +519,11 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
     bool *d_filterFlags = nullptr;
     if (!conditions.empty())
     {
-        // // First evaluate conditions on CPU (or could use your selectKernel)
-        // std::vector<bool> h_filterFlags(rowCount, true);
-        // // ... evaluate conditions to fill h_filterFlags ...
-
-        // cudaMalloc(&d_filterFlags, rowCount * sizeof(bool));
-        // cudaMemcpy(d_filterFlags, h_filterFlags.data(), rowCount * sizeof(bool), cudaMemcpyHostToDevice);
+        // TODO: Implement condition evaluation similar to selectKernel
+        // For now, we'll just allocate device memory for filter flags
+        cudaMalloc(&d_filterFlags, rowCount * sizeof(bool));
+        // Initialize all to true (include all rows)
+        cudaMemset(d_filterFlags, true, rowCount * sizeof(bool));
     }
 
     // Prepare group by information
@@ -361,7 +538,7 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
 
     if (!groupByColumns.empty())
     {
-        // Get group by column info
+        // Get group by column info and copy data to device
         for (const auto &colName : groupByColumns)
         {
             auto it = columnNameToIndex.find(colName);
@@ -369,16 +546,48 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
             {
                 throw std::runtime_error("Group by column not found: " + colName);
             }
-            groupByColumnInfos.push_back(inputTable.getColumnInfoGPU(colName));
+
+            GPUDBMS::ColumnInfoGPU colInfo = inputTable.getColumnInfoGPU(colName);
+
+            // Allocate and copy column data to GPU
+            void *d_columnData = nullptr;
+            size_t dataSize = colInfo.count * colInfo.stride;
+            cudaMalloc(&d_columnData, dataSize);
+
+            // Special handling for string and datetime types
+            if (colInfo.type == GPUDBMS::DataType::DATETIME ||
+                colInfo.type == GPUDBMS::DataType::DATE ||
+                colInfo.type == GPUDBMS::DataType::STRING ||
+                colInfo.type == GPUDBMS::DataType::VARCHAR)
+            {
+                size_t elementSize = (colInfo.type == GPUDBMS::DataType::DATETIME) ? 20 : 256;
+                size_t totalSize = rowCount * elementSize;
+                cudaMalloc(&d_columnData, totalSize);
+                cudaMemcpy(d_columnData, colInfo.data, totalSize, cudaMemcpyHostToDevice);
+                colInfo.data = d_columnData;
+            }
+            else
+            {
+                cudaMemcpy(d_columnData, colInfo.data, dataSize, cudaMemcpyHostToDevice);
+                colInfo.data = d_columnData;
+            }
+
+            groupByColumnInfos.push_back(colInfo);
         }
 
+        // For simplicity, we'll assume single grouping column for now
         // Determine groups based on unique values in the group by column
         std::unordered_set<int> uniqueGroups;
         const int *groupByData = static_cast<const int *>(groupByColumnInfos[0].data);
 
+        // Copy data back to host temporarily to determine groups
+        std::vector<int> h_groupByData(rowCount);
+        cudaMemcpy(h_groupByData.data(), groupByColumnInfos[0].data,
+                   rowCount * sizeof(int), cudaMemcpyDeviceToHost);
+
         for (size_t i = 0; i < rowCount; ++i)
         {
-            uniqueGroups.insert(groupByData[i]);
+            uniqueGroups.insert(h_groupByData[i]);
         }
 
         int numGroups = static_cast<int>(uniqueGroups.size());
@@ -393,10 +602,10 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
 
         for (size_t i = 0; i < rowCount; ++i)
         {
-            h_groupIndices[i] = groupMapping[groupByData[i]];
+            h_groupIndices[i] = groupMapping[h_groupByData[i]];
         }
 
-        groupByInfo.keyType = groupByColumnInfos[0].type; // Assuming single grouping column
+        groupByInfo.keyType = groupByColumnInfos[0].type;
         groupByInfo.numGroups = numGroups;
 
         // Allocate and copy group indices to device
@@ -405,13 +614,7 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
         cudaMemcpy(d_groupIndices, h_groupIndices.data(), rowCount * sizeof(int), cudaMemcpyHostToDevice);
 
         groupByInfo.groupIndices = d_groupIndices;
-
-        // Allocate and copy group by column data to device
-        void *d_groupByData = nullptr;
-        size_t dataSize = getTypeSize(groupByColumnInfos[0].type) * rowCount;
-        cudaMalloc(&d_groupByData, dataSize);
-        cudaMemcpy(d_groupByData, groupByColumnInfos[0].data, dataSize, cudaMemcpyHostToDevice);
-        groupByInfo.keyData = d_groupByData;
+        groupByInfo.keyData = groupByColumnInfos[0].data; // Use the already copied device data
     }
 
     // Prepare aggregation information
@@ -428,29 +631,64 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
         }
 
         GPUDBMS::ColumnInfoGPU colInfo = inputTable.getColumnInfoGPU(colName);
+
+        // Allocate and copy input data to device
+        void *d_inputData = nullptr;
+        size_t dataSize = colInfo.count * colInfo.stride;
+        cudaMalloc(&d_inputData, dataSize);
+
+        if (colInfo.type == GPUDBMS::DataType::DATETIME ||
+            colInfo.type == GPUDBMS::DataType::DATE ||
+            colInfo.type == GPUDBMS::DataType::STRING ||
+            colInfo.type == GPUDBMS::DataType::VARCHAR)
+        {
+            size_t elementSize = (colInfo.type == GPUDBMS::DataType::DATETIME) ? 20 : 256;
+            size_t totalSize = rowCount * elementSize;
+            cudaMalloc(&d_inputData, totalSize);
+            cudaMemcpy(d_inputData, colInfo.data, totalSize, cudaMemcpyHostToDevice);
+        }
+        else
+        {
+            size_t elementSize = getTypeSize(colInfo.type);
+            cudaMemcpy(d_inputData, colInfo.data, rowCount * elementSize, cudaMemcpyHostToDevice);
+        }
+       
+        
+        // Update column info with device pointer
+        colInfo.data = d_inputData;
         aggColumnInfos.push_back(colInfo);
 
         AggregationInfo aggInfo;
         aggInfo.type = agg.second;
         aggInfo.dataType = colInfo.type;
-
-        // Allocate and copy input data to device
-        void *d_inputData = nullptr;
-        size_t dataSize = getTypeSize(colInfo.type) * rowCount;
-        cudaMalloc(&d_inputData, dataSize);
-        cudaMemcpy(d_inputData, colInfo.data, dataSize, cudaMemcpyHostToDevice);
         aggInfo.inputData = d_inputData;
 
-        // Allocate output memory
+        // Allocate output memory on device
         size_t outputSize = groupByInfo.numGroups * getTypeSize(colInfo.type);
         void *d_outputData = nullptr;
         cudaMalloc(&d_outputData, outputSize);
+
+        // Initialize output memory based on aggregation type
+        if (aggInfo.type == AggregateFunction::MIN && aggInfo.dataType == GPUDBMS::DataType::DATETIME)
+        {
+            std::vector<std::string> init(groupByInfo.numGroups, "9999-12-31 23:59:59");
+            cudaMemcpy(d_outputData, init.data(), outputSize, cudaMemcpyHostToDevice);
+        }
+        else if (aggInfo.type == AggregateFunction::MAX && aggInfo.dataType == GPUDBMS::DataType::DATETIME)
+        {
+            std::vector<std::string> init(groupByInfo.numGroups, "0000-01-01 00:00:00");
+            cudaMemcpy(d_outputData, init.data(), outputSize, cudaMemcpyHostToDevice);
+        }
+        else
+        {
+            cudaMemset(d_outputData, 0, outputSize);
+        }
+
         aggInfo.outputData = d_outputData;
         aggInfo.outputSize = outputSize;
 
         aggregationInfos.push_back(aggInfo);
     }
-
     // Copy aggregation info to device
     AggregationInfo *d_aggregations = nullptr;
     cudaMalloc(&d_aggregations, numAggregations * sizeof(AggregationInfo));
@@ -471,7 +709,7 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
     // Launch kernel
     int blockSize = 256;
     int numGroups = groupByInfo.numGroups;
-    int numBlocks = numGroups; // One block per group
+    int numBlocks = (numGroups + blockSize - 1) / blockSize; // Adjust blocks based on group count
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -494,33 +732,42 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
+    // Check for kernel errors
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA error in aggregation kernel: " << cudaGetErrorString(err) << std::endl;
+        // Clean up and return empty table
+        GPUDBMS::Table emptyTable;
+        return emptyTable;
+    }
+
     // Create output table with aggregation results
     GPUDBMS::Table resultTable;
 
     // Add group by columns first if they exist
     if (!groupByColumns.empty())
     {
-        // For each group by column, we need to get the representative value per group
-        // This is simplified - in reality you'd need to collect the group keys
-        for (size_t i = 0; i < groupByColumns.size(); i++)
-        {
-            std::vector<int> groupKeys(groupByInfo.numGroups);
-            // ... populate groupKeys with representative values ...
+        // Copy group keys back to host
+        std::vector<int> h_groupKeys(groupByInfo.numGroups);
+        cudaMemcpy(h_groupKeys.data(), groupByColumnInfos[0].data,
+                   groupByInfo.numGroups * sizeof(int), cudaMemcpyDeviceToHost);
 
-            resultTable.addColumn(GPUDBMS::Column(groupByColumnInfos[i].name, groupByColumnInfos[i].type));
+        // Add group by column to result table
+        resultTable.addColumn(GPUDBMS::Column(groupByColumns[0], groupByColumnInfos[0].type));
+
+        // Add group keys to the result table
+        for (int key : h_groupKeys)
+        {
+            resultTable.appendIntValue(0, key);
         }
     }
 
-    // Add aggregation result columns
+    // Add aggregation result columns and copy results
     for (size_t i = 0; i < aggregations.size(); i++)
     {
         const auto &agg = aggregations[i];
         const AggregationInfo &aggInfo = aggregationInfos[i];
-
-        // Copy results back to host
-        std::vector<float> h_results(groupByInfo.numGroups);
-        cudaMemcpy(h_results.data(), aggInfo.outputData,
-                   aggInfo.outputSize, cudaMemcpyDeviceToHost);
 
         // Create column name based on aggregation type
         std::string colName = agg.first + "_";
@@ -543,42 +790,87 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
             break;
         }
 
+        // Add column to result table
         resultTable.addColumn(GPUDBMS::Column(colName, aggInfo.dataType));
-    }
 
-    // Copy results to output table
-    for (size_t i = 0; i < resultTable.getColumnCount(); i++)
-    {
-        const auto &col = resultTable.getColumns()[i];
-        if (col.getName().find("_") != std::string::npos)
+        // Copy results back to host based on data type
+        switch (aggInfo.dataType)
         {
-            // This is an aggregation result column
-            size_t groupSize = groupByInfo.numGroups * getTypeSize(col.getType());
-            void *h_data = malloc(groupSize);
-            cudaMemcpy(h_data, aggregationInfos[i].outputData, groupSize, cudaMemcpyDeviceToHost);
-
-            for (size_t j = 0; j < groupByInfo.numGroups; j++)
+        case GPUDBMS::DataType::INT:
+        {
+            std::vector<int> h_results(groupByInfo.numGroups);
+            cudaMemcpy(h_results.data(), aggInfo.outputData,
+                       groupByInfo.numGroups * sizeof(int), cudaMemcpyDeviceToHost);
+            for (int val : h_results)
             {
-                switch (col.getType())
-                {
-                case GPUDBMS::DataType::INT:
-                    resultTable.appendIntValue(i, static_cast<int *>(h_data)[j]);
-                    break;
-                case GPUDBMS::DataType::FLOAT:
-                    resultTable.appendFloatValue(i, static_cast<float *>(h_data)[j]);
-                    break;
-                case GPUDBMS::DataType::DOUBLE:
-                    resultTable.appendDoubleValue(i, static_cast<double *>(h_data)[j]);
-                    break;
-                }
+                resultTable.appendIntValue(i + groupByColumns.size(), val);
             }
-            
-
+            break;
         }
-        else
+        case GPUDBMS::DataType::FLOAT:
         {
-            // This is a group by column
-            // ... handle group by column data ...
+            std::vector<float> h_results(groupByInfo.numGroups);
+            cudaMemcpy(h_results.data(), aggInfo.outputData,
+                       groupByInfo.numGroups * sizeof(float), cudaMemcpyDeviceToHost);
+            for (float val : h_results)
+            {
+                resultTable.appendFloatValue(i + groupByColumns.size(), val);
+            }
+            break;
+        }
+        case GPUDBMS::DataType::DOUBLE:
+        {
+            std::vector<double> h_results(groupByInfo.numGroups);
+            cudaMemcpy(h_results.data(), aggInfo.outputData,
+                       groupByInfo.numGroups * sizeof(double), cudaMemcpyDeviceToHost);
+            for (double val : h_results)
+            {
+                resultTable.appendDoubleValue(i + groupByColumns.size(), val);
+            }
+            break;
+        }
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+        {
+            std::vector<char> h_results(groupByInfo.numGroups * 256); // Assuming max string length of 256
+            cudaMemcpy(h_results.data(), aggInfo.outputData,
+                       groupByInfo.numGroups * 256, cudaMemcpyDeviceToHost);
+            for (int j = 0; j < groupByInfo.numGroups; ++j)
+            {
+                resultTable.appendStringValue(i + groupByColumns.size(),
+                                              std::string(h_results.data() + j * 256, 256));
+            }
+            break;
+        }
+        case GPUDBMS::DataType::DATE:
+        {
+            std::vector<int> h_results(groupByInfo.numGroups);
+            cudaMemcpy(h_results.data(), aggInfo.outputData,
+                       groupByInfo.numGroups * sizeof(int), cudaMemcpyDeviceToHost);
+            for (int val : h_results)
+            {
+                resultTable.appendIntValue(i + groupByColumns.size(), val);
+            }
+            break;
+        }
+        case GPUDBMS::DataType::DATETIME:
+        {
+            size_t elementSize = 20; // or use columnInfo.stride if it's correct
+            size_t totalSize = groupByInfo.numGroups * elementSize;
+            std::vector<char> h_results(totalSize);
+            cudaMemcpy(h_results.data(), aggInfo.outputData, totalSize, cudaMemcpyDeviceToHost);
+
+            for (int j = 0; j < groupByInfo.numGroups; ++j)
+            {
+                const char *datetimeStr = h_results.data() + j * elementSize;
+                size_t len = strnlen(datetimeStr, elementSize);
+                resultTable.appendStringValue(i + groupByColumns.size(),
+                                              std::string(datetimeStr, len));
+            }
+            break;
+        }
+        default:
+            throw std::runtime_error("Unsupported data type for aggregation result");
         }
     }
 
@@ -592,18 +884,12 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
 
     if (d_groupBy)
     {
-        GroupByInfo h_groupBy;
-        cudaMemcpy(&h_groupBy, d_groupBy, sizeof(GroupByInfo), cudaMemcpyDeviceToHost);
-
-        if (h_groupBy.keyData)
-        {
-            cudaFree(const_cast<void *>(h_groupBy.keyData));
-        }
-        if (h_groupBy.groupIndices)
-        {
-            cudaFree(h_groupBy.groupIndices);
-        }
         cudaFree(d_groupBy);
+    }
+
+    for (auto &colInfo : groupByColumnInfos)
+    {
+        cudaFree(const_cast<void *>(colInfo.data));
     }
 
     if (d_filterFlags)

@@ -84,6 +84,7 @@ namespace GPUDBMS
         virtual std::unique_ptr<ColumnData> clone() const = 0;
         virtual std::unique_ptr<ColumnData> createEmpty() const = 0;
         virtual void appendFromRow(const ColumnData &source, int rowIndex) = 0;
+        virtual void reserve(size_t count) = 0;
     };
 
     /**
@@ -141,6 +142,11 @@ namespace GPUDBMS
         }
 
         void appendFromRow(const ColumnData &source, int rowIndex) override;
+
+        void reserve(size_t count) override
+        {
+            m_data.reserve(count);
+        }
 
     private:
         std::vector<T> m_data;
@@ -425,6 +431,15 @@ namespace GPUDBMS
         Table getSlicedTable(const std::vector<int> &rowIndices) const;
 
         ColumnInfoGPU getColumnInfoGPU(const std::string &columnName) const;
+
+        void reserve(size_t rowCount)
+        {
+            for (auto &columnData : m_columnData)
+            {
+                // Dispatch to the correct type-specific reserve implementation
+                columnData->reserve(rowCount);
+            }
+        }
 
     private:
         std::vector<Column>

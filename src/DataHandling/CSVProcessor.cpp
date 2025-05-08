@@ -19,42 +19,74 @@ namespace GPUDBMS
         std::filesystem::create_directories(dataDirectory + "/outputs/txt");
     }
 
-StorageManager::~StorageManager() {
-}
+    StorageManager::~StorageManager()
+    {
+    }
+
+    std::vector<std::string> fastSplitCSVLine(const std::string &line)
+    {
+        std::vector<std::string> tokens;
+        tokens.reserve(20); // Typical column count
+
+        size_t start = 0;
+        bool inQuotes = false;
+
+        for (size_t i = 0; i < line.length(); ++i)
+        {
+            if (line[i] == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (line[i] == ',' && !inQuotes)
+            {
+                tokens.emplace_back(line.substr(start, i - start));
+                start = i + 1;
+            }
+        }
+        tokens.emplace_back(line.substr(start));
+        return tokens;
+    }
 
     Table CSVProcessor::readCSV(const std::string &filePath)
     {
+        // Enable large file buffering
         std::ifstream file(filePath);
+        std::vector<char> buffer(1024 * 1024);
+        file.rdbuf()->pubsetbuf(buffer.data(), buffer.size());
+
         if (!file.is_open())
         {
             throw std::runtime_error("Failed to open CSV file: " + filePath);
         }
 
-        std::string headerLine;
+        // Estimate rows
+        file.seekg(0, std::ios::end);
+        size_t fileSize = file.tellg();
+        file.seekg(0, std::ios::beg);
 
-        // Read the header line
+        std::string headerLine;
         if (!std::getline(file, headerLine))
         {
             throw std::runtime_error("CSV file is empty or couldn't read header: " + filePath);
         }
 
-        // Parse headers with type annotations
-        std::vector<Column> columns = parseHeaderWithTypeAnnotations(headerLine);
+        auto columns = parseHeaderWithTypeAnnotations(headerLine);
         Table table(columns);
+        table.reserve(fileSize / 100); // Estimate
 
-        // Process data rows
         std::string line;
+        line.reserve(1024); // Reserve space for long lines
+
         while (std::getline(file, line))
         {
             if (line.empty())
                 continue;
 
-            std::vector<std::string> values = splitCSVLine(line);
+            auto values = fastSplitCSVLine(line);
 
             if (values.size() != columns.size())
             {
-                // Log warning and skip this row
-                std::cerr << "Warning: Skipping row with incorrect number of values: " << line << std::endl;
+                std::cerr << "Warning: Skipping row with incorrect values\n";
                 continue;
             }
 
@@ -223,32 +255,39 @@ StorageManager::~StorageManager() {
         return annotations;
     }
 
-DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& annotations) {
-    // Default to VARCHAR if no annotations
-    if (annotations.empty()) {
-        return DataType::VARCHAR;
-    }
-    
-    // Check for type annotations
-    for (const auto& annotation : annotations) {
-        if (annotation == "N") {
-            // Could be INT or DOUBLE - choose INT as default
-            return DataType::DOUBLE;
-        }
-        else if (annotation == "T") {
+    DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string> &annotations)
+    {
+        // Default to VARCHAR if no annotations
+        if (annotations.empty())
+        {
             return DataType::VARCHAR;
         }
-        else if (annotation == "B") {
-            return DataType::BOOL;
+
+        // Check for type annotations
+        for (const auto &annotation : annotations)
+        {
+            if (annotation == "N")
+            {
+                // Could be INT or DOUBLE - choose INT as default
+                return DataType::DOUBLE;
+            }
+            else if (annotation == "T")
+            {
+                return DataType::VARCHAR;
+            }
+            else if (annotation == "B")
+            {
+                return DataType::BOOL;
+            }
+            else if (annotation == "D")
+            {
+                return DataType::DATETIME; // New annotation for DateTime
+            }
         }
-        else if (annotation == "D") {
-            return DataType::DATETIME; // New annotation for DateTime
-        }
+
+        // Default to VARCHAR
+        return DataType::VARCHAR;
     }
-    
-    // Default to VARCHAR
-    return DataType::VARCHAR;
-}
 
     std::vector<std::string> CSVProcessor::splitCSVLine(const std::string &line)
     {
@@ -325,14 +364,16 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
                     break;
                 case DataType::DATETIME:
                     table.appendStringValue(col, ""); // Empty datetime
-                    break;    
+                    break;
+                }
+                continue;
             }
-            continue;
-        }
-        
-        // Otherwise, parse the value according to column type
-        try {
-            switch (column.getType()) {
+
+            // Otherwise, parse the value according to column type
+            try
+            {
+                switch (column.getType())
+                {
                 case DataType::INT:
                     table.appendIntValue(col, std::stoi(value));
                     break;
@@ -340,9 +381,12 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
                     table.appendFloatValue(col, std::stof(value));
                     break;
                 case DataType::DOUBLE:
-                    if (value.find('.') != std::string::npos) {
+                    if (value.find('.') != std::string::npos)
+                    {
                         table.appendDoubleValue(col, std::stod(value));
-                    } else {
+                    }
+                    else
+                    {
                         // Integer value in a DOUBLE column
                         table.appendDoubleValue(col, static_cast<double>(std::stoi(value)));
                     }
@@ -360,23 +404,29 @@ DataType CSVProcessor::mapAnnotationToDataType(const std::vector<std::string>& a
                     break;
                 case DataType::DATETIME:
                     // For DateTime, validate the format before adding
-                    if (Table::isValidDateTime(value)) {
+                    if (Table::isValidDateTime(value))
+                    {
                         table.appendStringValue(col, value);
-                    } else {
+                    }
+                    else
+                    {
                         // Try to convert to proper format if possible
                         // For now, store as-is
                         table.appendStringValue(col, value);
                     }
                     break;
+                }
             }
-        } catch (const std::exception& e) {
-            // If conversion fails, use a default value
-            std::cerr << "Warning: Failed to convert value '" << value 
-                      << "' to type " << static_cast<int>(column.getType()) 
-                      << " for column " << column.getName() << ": " << e.what() << std::endl;
-            
-            // Add a default value
-            switch (column.getType()) {
+            catch (const std::exception &e)
+            {
+                // If conversion fails, use a default value
+                std::cerr << "Warning: Failed to convert value '" << value
+                          << "' to type " << static_cast<int>(column.getType())
+                          << " for column " << column.getName() << ": " << e.what() << std::endl;
+
+                // Add a default value
+                switch (column.getType())
+                {
                 case DataType::INT:
                     table.appendIntValue(col, 0);
                     break;

@@ -168,25 +168,92 @@ namespace GPUDBMS
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<int> &>(cd);
             colInfo.data = const_cast<int*>(col.getData().data());
+            colInfo.count = col.size();
+            colInfo.stride = sizeof(int); // Assuming int data is stored in a contiguous block
             break;
         }
         case GPUDBMS::DataType::FLOAT:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<float> &>(cd);
             colInfo.data = const_cast<float*>(col.getData().data());
+            colInfo.count = col.size();
+            colInfo.stride = sizeof(float); // Assuming float data is stored in a contiguous block
             break;
         }
         case GPUDBMS::DataType::DOUBLE:
         {
             auto &col = static_cast<const GPUDBMS::ColumnDataImpl<double> &>(cd);
             colInfo.data = const_cast<double*>(col.getData().data());
+            colInfo.count = col.size();
+            colInfo.stride = sizeof(double); // Assuming double data is stored in a contiguous block
             break;
         }
-            // case GPUDBMS::DataType::BOOL: {
-            //     auto &col = static_cast<const GPUDBMS::ColumnDataImpl<bool>&>(cd);
-            //     colInfo.data = col.getData().data();
-            //     break;
-            // }
+        case GPUDBMS::DataType::VARCHAR:
+        case GPUDBMS::DataType::STRING:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<std::string> &>(cd);
+            const std::vector<std::string> &strVec = col.getData();
+
+            // Allocate a single contiguous buffer for all strings
+            const size_t maxStrLen = 256; // For VARCHAR/STRING
+            char *h_contiguousBuffer = new char[strVec.size() * maxStrLen];
+
+            // Copy strings to contiguous buffer
+            for (size_t i = 0; i < strVec.size(); i++)
+            {
+                strncpy(h_contiguousBuffer + (i * maxStrLen),
+                        strVec[i].c_str(),
+                        maxStrLen - 1);
+                h_contiguousBuffer[(i * maxStrLen) + maxStrLen - 1] = '\0';
+            }
+
+            colInfo.data = h_contiguousBuffer;
+            colInfo.count = strVec.size();
+            colInfo.stride = maxStrLen; // Add this to your ColumnInfo struct
+            break;
+        }
+        case GPUDBMS::DataType::BOOL:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<bool> &>(cd);
+            // Create a copy of the data since std::vector<bool> doesn't provide direct pointer access
+            static std::vector<char> boolBuffer;
+            boolBuffer.clear();
+            const auto& boolData = col.getData();
+            boolBuffer.reserve(boolData.size());
+            for (bool val : boolData) {
+                boolBuffer.push_back(val ? 1 : 0);
+            }
+            colInfo.data = boolBuffer.data();
+            colInfo.count = col.size();
+            colInfo.stride = sizeof(char); // Assuming bool data is stored as char (0 or 1)
+            break;
+        }
+
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<std::string> &>(cd);
+            const std::vector<std::string> &strVec = col.getData();
+
+            // Allocate a single contiguous buffer for all strings
+            const size_t maxStrLen = 20; // For DATE/DATETIME
+            char *h_contiguousBuffer = new char[strVec.size() * maxStrLen];
+
+            // Copy strings to contiguous buffer
+            for (size_t i = 0; i < strVec.size(); i++)
+            {
+                strncpy(h_contiguousBuffer + (i * maxStrLen),
+                        strVec[i].c_str(),
+                        maxStrLen - 1);
+                h_contiguousBuffer[(i * maxStrLen) + maxStrLen - 1] = '\0';
+            }
+
+            colInfo.data = h_contiguousBuffer;
+            colInfo.count = strVec.size();
+            colInfo.stride = maxStrLen;
+            break;
+        }
+           
             // Add cases for other data types as needed
         }
         return colInfo;

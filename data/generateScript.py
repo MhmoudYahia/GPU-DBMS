@@ -1,25 +1,39 @@
 import pandas as pd
-import os
+import numpy as np
+from datetime import datetime, timedelta
 
-def generate_script(count, name, output_dir):
-    # Create a DataFrame with the specified number of rows
-    df = pd.DataFrame({
-        'id': range(1, count + 1),
-        'name': [name] * count,
-        'age': [i % 100 for i in range(count)],
-        'salary': [i * 1000 for i in range(count)],
-    })
 
-    # Save the DataFrame to a CSV file
-    output_file = os.path.join(output_dir, f"{name}.csv")
-    df.to_csv(output_file, index=False)
-    print(f"Generated {count} rows of data for {name} and saved to {output_file}")
-if __name__ == "__main__":
-    # Example usage
-    count = 1000
-    name = "users"
-    output_dir = "data/input_csvs"
-    
-    os.makedirs(output_dir, exist_ok=True)
-    
-    generate_script(count, name, output_dir)
+
+df = pd.read_csv('data/input_csvs/Products.csv')
+df['ReleaseDate (D)'] = pd.to_datetime(df['ReleaseDate (D)'])
+
+# Number of rows to add
+num_new_rows = 1000000
+
+# Generate new rows dynamically
+last_id = df['Products_id (N) (P)'].max()
+
+# Pre-generate data for better performance
+new_ids = np.arange(last_id + 1, last_id + num_new_rows + 1)
+new_names = [f"Product {chr(70 + (i % 26))}" for i in range(num_new_rows)]
+new_prices = np.round(np.random.uniform(10, 100, num_new_rows), 2)
+max_date = df['ReleaseDate (D)'].max()
+new_dates = max_date + pd.to_timedelta(np.random.randint(30, 365, num_new_rows), unit='D')
+
+# Create a DataFrame directly instead of stacking arrays with incompatible types
+new_df = pd.DataFrame({
+	'Products_id (N) (P)': new_ids,
+	'ProductName (T)': new_names,
+	'Price (N)': new_prices,
+	'ReleaseDate (D)': new_dates
+})
+
+# Ensure the data types match the original DataFrame
+for col in df.columns:
+	new_df[col] = new_df[col].astype(df[col].dtype)
+df = pd.concat([df, new_df], ignore_index=True)
+
+# Display result
+print(df)
+
+df.to_csv('data/input_csvs/Products.csv', index=False)

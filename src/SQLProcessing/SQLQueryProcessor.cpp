@@ -104,6 +104,18 @@ namespace GPUDBMS
             case hsql::DataType::VARCHAR:
                 dataType = DataType::VARCHAR;
                 break;
+            case hsql::DataType::FLOAT:
+                dataType = DataType::FLOAT;
+                break;
+            case hsql::DataType::BOOLEAN:
+                dataType = DataType::BOOL;
+                break;
+            case hsql::DataType::DATE:
+                dataType = DataType::DATE;
+                break;
+            case hsql::DataType::DATETIME:
+                dataType = DataType::DATETIME;
+                break;
             default:
                 throw std::runtime_error("Unsupported data type for column: " + std::string(col->name));
             }
@@ -335,7 +347,7 @@ namespace GPUDBMS
 
             // Execute the join
             Join joinOp(leftTable, rightTable, *joinCondition, joinType);
-            resultTable = joinOp.execute();
+            resultTable = joinOp.execute(useGPU);
         }
         else if (stmt->fromTable->type == hsql::kTableCrossProduct)
         {
@@ -354,7 +366,7 @@ namespace GPUDBMS
 
                 // Execute cross join (which is effectively what comma does)
                 Join joinOp(resultTable, rightTable, *dummyCondition, JoinType::INNER);
-                resultTable = joinOp.execute();
+                resultTable = joinOp.execute(useGPU);
             }
         }
         else
@@ -490,7 +502,7 @@ namespace GPUDBMS
             }
 
             Aggregator aggregator(resultTable, aggregations, groupByColumn);
-            resultTable = aggregator.execute();
+            resultTable = aggregator.execute(useGPU);
         }
         // If no aggregation, handle normal SELECT (projection)
         else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
@@ -521,7 +533,7 @@ namespace GPUDBMS
             if (!projectColumns.empty())
             {
                 Project projectOp(resultTable, projectColumns);
-                resultTable = projectOp.execute();
+                resultTable = projectOp.execute(useGPU);
             }
         }
 
@@ -536,7 +548,7 @@ namespace GPUDBMS
                 {
                     SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
                     OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
-                    resultTable = orderByOp.execute();
+                    resultTable = orderByOp.execute(useGPU);
                 }
                 else
                 {
@@ -563,7 +575,7 @@ namespace GPUDBMS
                 }
 
                 OrderBy orderByOp(resultTable, sortColumns, sortOrders);
-                resultTable = orderByOp.execute();
+                resultTable = orderByOp.execute(useGPU);
             }
         }
 

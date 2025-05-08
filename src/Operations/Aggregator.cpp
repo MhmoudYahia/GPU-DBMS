@@ -144,6 +144,10 @@ namespace GPUDBMS
                 case DataType::BOOL:
                     groupValue = m_inputTable.getBoolValue(groupIndex, row) ? "true" : "false";
                     break;
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    groupValue = m_inputTable.getDateTimeValue(groupIndex, row);
+                    break;
                 }
 
                 groups[groupValue].push_back(row);
@@ -172,6 +176,10 @@ namespace GPUDBMS
                     break;
                 case DataType::BOOL:
                     resultTable.appendBoolValue(colIndex, groupValue == "true");
+                    break;
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    resultTable.appendStringValue(colIndex, groupValue); // Store as string
                     break;
                 }
                 colIndex++;
@@ -287,6 +295,42 @@ namespace GPUDBMS
                             for (size_t rowIdx : rowIndices)
                             {
                                 values.push_back(m_inputTable.getStringValue(aggColIndex, rowIdx));
+                            }
+
+                            if (!values.empty())
+                            {
+                                if (agg.function == AggregateFunction::MIN)
+                                {
+                                    resultTable.appendStringValue(colIndex, *std::min_element(values.begin(), values.end()));
+                                }
+                                else
+                                { // MAX
+                                    resultTable.appendStringValue(colIndex, *std::max_element(values.begin(), values.end()));
+                                }
+                            }
+                            else
+                            {
+                                resultTable.appendStringValue(colIndex, "");
+                            }
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Cannot apply SUM or AVG to non-numeric column: " + agg.columnName);
+                        }
+                        break;
+
+                    case DataType::DATE:
+                    case DataType::DATETIME:
+                        if (agg.function == AggregateFunction::COUNT)
+                        {
+                            resultTable.appendIntValue(colIndex, rowIndices.size());
+                        }
+                        else if (agg.function == AggregateFunction::MIN || agg.function == AggregateFunction::MAX)
+                        {
+                            std::vector<std::string> values;
+                            for (size_t rowIdx : rowIndices)
+                            {
+                                values.push_back(m_inputTable.getDateTimeValue(aggColIndex, rowIdx));
                             }
 
                             if (!values.empty())
@@ -444,6 +488,42 @@ namespace GPUDBMS
                         for (size_t row = 0; row < m_inputTable.getRowCount(); ++row)
                         {
                             values.push_back(m_inputTable.getStringValue(aggColIndex, row));
+                        }
+
+                        if (!values.empty())
+                        {
+                            if (agg.function == AggregateFunction::MIN)
+                            {
+                                resultTable.appendStringValue(colIndex, *std::min_element(values.begin(), values.end()));
+                            }
+                            else
+                            { // MAX
+                                resultTable.appendStringValue(colIndex, *std::max_element(values.begin(), values.end()));
+                            }
+                        }
+                        else
+                        {
+                            resultTable.appendStringValue(colIndex, "");
+                        }
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Cannot apply SUM or AVG to non-numeric column: " + agg.columnName);
+                    }
+                    break;
+
+                case DataType::DATE:
+                case DataType::DATETIME:
+                    if (agg.function == AggregateFunction::COUNT)
+                    {
+                        resultTable.appendIntValue(colIndex, m_inputTable.getRowCount());
+                    }
+                    else if (agg.function == AggregateFunction::MIN || agg.function == AggregateFunction::MAX)
+                    {
+                        std::vector<std::string> values;
+                        for (size_t row = 0; row < m_inputTable.getRowCount(); ++row)
+                        {
+                            values.push_back(m_inputTable.getDateTimeValue(aggColIndex, row));
                         }
 
                         if (!values.empty())
