@@ -1,6 +1,7 @@
 #include "../../include/DataHandling/Table.hpp"
 #include <algorithm>
 #include <regex>
+#include <cstring>
 
 namespace GPUDBMS
 {
