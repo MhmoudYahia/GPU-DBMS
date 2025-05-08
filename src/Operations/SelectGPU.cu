@@ -66,6 +66,26 @@ __global__ void selectKernel(
 
             break;
         }
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+        {
+            // For contiguous string storage
+            const char *col = static_cast<const char *>(cond.columnInfo.data);
+            const char *query = static_cast<const char *>(cond.queryValue);
+
+            // Calculate the offset for this row's string
+            const char *currentStr = col + (row * cond.columnInfo.stride);
+
+            if (row >= cond.columnInfo.count || currentStr == nullptr || query == nullptr)
+            {
+                currentResult = false;
+            }
+            else
+            {
+                currentResult = compareString(cond.comparisonOp, currentStr, query);
+            }
+            break;
+        }
             // Add string cases if needed
         }
 
@@ -282,6 +302,15 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
             condition.queryValue = static_cast<void *>(buffer);
             break;
         }
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+        {
+            char *buffer = new char[20];
+            strncpy(buffer, valueStr.c_str(), 19);
+            buffer[19] = '\0'; // Null-terminate the string
+            condition.queryValue = static_cast<void *>(buffer);
+            break;
+        }
         default:
             std::cerr << "Unsupported data type for column: " << columnName << std::endl;
             continue;
@@ -351,6 +380,30 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
             condition.columnInfo.count = strVec.size();
             break;
         }
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+        {
+            auto &col = static_cast<const GPUDBMS::ColumnDataImpl<std::string> &>(cd);
+            const std::vector<std::string> &strVec = col.getData();
+
+            // Allocate a single contiguous buffer for all strings
+            const size_t maxStrLen = 20; // For DATE/DATETIME
+            char *h_contiguousBuffer = new char[strVec.size() * maxStrLen];
+
+            // Copy strings to contiguous buffer
+            for (size_t i = 0; i < strVec.size(); i++)
+            {
+                strncpy(h_contiguousBuffer + (i * maxStrLen),
+                        strVec[i].c_str(),
+                        maxStrLen - 1);
+                h_contiguousBuffer[(i * maxStrLen) + maxStrLen - 1] = '\0';
+            }
+
+            condition.columnInfo.data = h_contiguousBuffer;
+            condition.columnInfo.count = strVec.size();
+            condition.columnInfo.stride = maxStrLen; // Add this to your ColumnInfo struct
+            break;
+        }
             // Add cases for other data types as needed
         }
 
@@ -409,18 +462,45 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         case GPUDBMS::DataType::VARCHAR:
             valueSize = 256;
             break; // Max string size
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+            valueSize = 20; // Max date/datetime size
+            break;
         }
 
-        cudaMalloc(&d_queryValue, valueSize);
-        cudaMemcpy(d_queryValue, cond.queryValue, valueSize, cudaMemcpyHostToDevice);
-        cond.queryValue = d_queryValue; // Replace host pointer with device pointer
+        if (cond.columnInfo.type == GPUDBMS::DataType::DATETIME || cond.columnInfo.type == GPUDBMS::DataType::DATE)
+        {
 
-        // Allocate and copy column data to GPU
-        void *d_columnData;
-        size_t dataSize = cond.columnInfo.count * valueSize;
-        cudaMalloc(&d_columnData, dataSize);
-        cudaMemcpy(d_columnData, cond.columnInfo.data, dataSize, cudaMemcpyHostToDevice);
-        cond.columnInfo.data = d_columnData; // Replace host pointer with device pointer
+            cudaMalloc(&d_queryValue, cond.columnInfo.count * cond.columnInfo.stride);
+            cudaMemcpy(d_queryValue, cond.queryValue, cond.columnInfo.count * cond.columnInfo.stride, cudaMemcpyHostToDevice);
+            cond.queryValue = d_queryValue; // Replace host pointer with device pointer
+
+            // Allocate device memory for the contiguous buffer
+            size_t bufferSize = cond.columnInfo.count * cond.columnInfo.stride;
+            char *d_buffer;
+            cudaMalloc(&d_buffer, bufferSize);
+            cudaMemcpy(d_buffer, cond.columnInfo.data, bufferSize, cudaMemcpyHostToDevice);
+
+            // Free the host buffer
+            delete[] static_cast<char *>(cond.columnInfo.data);
+
+            cond.columnInfo.data = d_buffer;
+            break;
+        }
+        else
+        {
+
+            cudaMalloc(&d_queryValue, valueSize);
+            cudaMemcpy(d_queryValue, cond.queryValue, valueSize, cudaMemcpyHostToDevice);
+            cond.queryValue = d_queryValue; // Replace host pointer with device pointer
+
+            // Allocate and copy column data to GPU
+            void *d_columnData;
+            size_t dataSize = cond.columnInfo.count * valueSize;
+            cudaMalloc(&d_columnData, dataSize);
+            cudaMemcpy(d_columnData, cond.columnInfo.data, dataSize, cudaMemcpyHostToDevice);
+            cond.columnInfo.data = d_columnData; // Replace host pointer with device pointer
+        }
     }
 
     // Step 2: Copy conditions to GPU (now they contain device pointers)
@@ -457,7 +537,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
 
     for (auto &cond : conditions)
     {
-        cudaFree(const_cast<void*>(cond.queryValue));
+        cudaFree(const_cast<void *>(cond.queryValue));
         cudaFree(cond.columnInfo.data);
     }
     cudaFree(d_conditions);
