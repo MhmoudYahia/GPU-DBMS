@@ -295,6 +295,12 @@ namespace GPUDBMS
         return DataType::BOOL;
     }
 
+    template <>
+    DataType ColumnDataImpl<char>::getType() const
+    {
+        return DataType::VARCHAR;
+    }
+
     // Table implementation
     Table::Table() {}
 
@@ -636,15 +642,6 @@ namespace GPUDBMS
         return resultTable;
     }
 
-    template <typename T>
-    void ColumnDataImpl<T>::appendFromRow(const ColumnData &source, int rowIndex)
-    {
-        const auto &typedSource = static_cast<const ColumnDataImpl<T> &>(source);
-        if (rowIndex < 0 || rowIndex >= typedSource.size())
-        {
-            throw std::out_of_range("Row index out of range");
-        }
-        append(typedSource.getValue(rowIndex));
-    }
+    
 
 } // namespace GPUDBMS

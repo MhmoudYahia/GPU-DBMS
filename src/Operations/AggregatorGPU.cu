@@ -56,12 +56,7 @@ __device__ static double atomicMaxDouble(double *address, double val)
     return __longlong_as_double(old);
 }
 
-__device__ void device_strcpy(char *dest, const char *src)
-{
-    while ((*dest++ = *src++))
-    {
-    }
-}
+
 
 __global__ void aggregationKernel(
     int numRows,

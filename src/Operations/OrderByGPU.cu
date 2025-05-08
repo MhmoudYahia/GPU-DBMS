@@ -88,7 +88,6 @@ __global__ void reorderDataKernel(
             reinterpret_cast<int *>(dst)[row] =
                 reinterpret_cast<const int *>(src)[src_row];
             break;
-            // Similar cases for other data types
         }
     }
 }
@@ -124,7 +123,6 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
         {
             throw std::runtime_error("Column not found: " + colName);
         }
-
         sortColumnInfos.push_back(inputTable.getColumnInfoGPU(colName));
     }
 
@@ -138,7 +136,7 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
     GPUDBMS::ColumnInfoGPU *d_sortColumns = nullptr;
     SortOrder *d_sortDirections = nullptr;
     cudaMalloc((void **)&d_sortColumns, numSortColumns * sizeof(GPUDBMS::ColumnInfoGPU));
-    cudaMalloc((void **)&d_sortDirections, numSortColumns * sizeof(bool));
+    cudaMalloc((void **)&d_sortDirections, numSortColumns * sizeof(SortOrder));
 
     // Create a copy of column infos that we'll modify to point to device memory
     std::vector<GPUDBMS::ColumnInfoGPU> device_sortColumns = sortColumnInfos;
@@ -146,9 +144,24 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
     {
         // Allocate and copy column data
         void *d_columnData = nullptr;
-        size_t dataSize = getTypeSize(sortColumnInfos[i].type) * rowCount;
-        cudaMalloc(&d_columnData, dataSize);
-        cudaMemcpy(d_columnData, sortColumnInfos[i].data, dataSize, cudaMemcpyHostToDevice);
+        size_t dataSize = rowCount * getTypeSize(sortColumnInfos[i].type);
+
+        if (sortColumnInfos[i].type == GPUDBMS::DataType::STRING ||
+            sortColumnInfos[i].type == GPUDBMS::DataType::VARCHAR ||
+            sortColumnInfos[i].type == GPUDBMS::DataType::DATE ||
+            sortColumnInfos[i].type == GPUDBMS::DataType::DATETIME)
+        {
+            // For variable-length types, use count * stride
+            dataSize = sortColumnInfos[i].count * sortColumnInfos[i].stride;
+            cudaMalloc(&d_columnData, dataSize);
+            cudaMemcpy(d_columnData, sortColumnInfos[i].data, dataSize, cudaMemcpyHostToDevice);
+        }
+        else
+        {
+            // For fixed-length types
+            cudaMalloc(&d_columnData, dataSize);
+            cudaMemcpy(d_columnData, sortColumnInfos[i].data, dataSize, cudaMemcpyHostToDevice);
+        }
         device_sortColumns[i].data = d_columnData;
     }
 
@@ -156,7 +169,7 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
     cudaMemcpy(d_sortColumns, device_sortColumns.data(),
                numSortColumns * sizeof(GPUDBMS::ColumnInfoGPU), cudaMemcpyHostToDevice);
     cudaMemcpy(d_sortDirections, sortDirections.data(),
-               numSortColumns * sizeof(bool), cudaMemcpyHostToDevice);
+               numSortColumns * sizeof(SortOrder), cudaMemcpyHostToDevice);
 
     // Launch key generation kernel
     int blockSize = 256;
@@ -175,10 +188,15 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
         d_keys);
 
     // Sort the keys and produce indices
-    sortRows(d_keys, d_indices, rowCount);
-    cudaEventRecord(stop);
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    sortRows(d_keys, d_indices, rowCount, stream);
+    cudaStreamSynchronize(stream);
+    cudaStreamDestroy(stream);
 
+    cudaEventRecord(stop);
     cudaEventSynchronize(stop);
+
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
     std::cout << "Sort execution time: " << milliseconds << " ms" << std::endl;
@@ -196,7 +214,7 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
     // Free device memory
     for (auto &col : device_sortColumns)
     {
-        cudaFree(const_cast<void*>(col.data));
+        cudaFree(const_cast<void *>(col.data));
     }
     cudaFree(d_sortColumns);
     cudaFree(d_sortDirections);
@@ -205,5 +223,4 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
 
     // Return sorted table
     return inputTable.getSlicedTable(sortedIndices);
-
 }

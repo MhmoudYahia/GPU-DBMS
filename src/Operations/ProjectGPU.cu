@@ -4,7 +4,7 @@ __global__ void projectKernel(
     int numRows,
     const GPUDBMS::ColumnInfoGPU *inputColumns,
     int numInputColumns,
-    const int *projectionIndices, // indices of columns to project
+    const int *projectionIndices,
     int numProjectionColumns,
     GPUDBMS::ColumnInfoGPU *outputColumns)
 {
@@ -18,37 +18,87 @@ __global__ void projectKernel(
         const GPUDBMS::ColumnInfoGPU &inCol = inputColumns[inputIdx];
         GPUDBMS::ColumnInfoGPU &outCol = outputColumns[i];
 
+        if (inCol.data == nullptr || outCol.data == nullptr)
+            continue;
+
+        // Ensure output column has proper count
+        outCol.count = numRows;
+
         switch (inCol.type)
         {
         case GPUDBMS::DataType::INT:
         {
             const int *src = static_cast<const int *>(inCol.data);
             int *dst = static_cast<int *>(outCol.data);
-            dst[row] = src[row];
+            printf("Copying int data from input column %d to output column %d\n", inputIdx, i);
+            printf("Input column count: %d, Output column count: %d\n", inCol.count, outCol.count);
+            printf("Row: %d, Input value: %d\n", row, (row < inCol.count) ? src[row] : 0);
+            dst[row] = (row < inCol.count) ? src[row] : 0;
             break;
         }
         case GPUDBMS::DataType::FLOAT:
         {
             const float *src = static_cast<const float *>(inCol.data);
             float *dst = static_cast<float *>(outCol.data);
-            dst[row] = src[row];
+            dst[row] = (row < inCol.count) ? src[row] : 0.0f;
             break;
         }
         case GPUDBMS::DataType::DOUBLE:
         {
             const double *src = static_cast<const double *>(inCol.data);
             double *dst = static_cast<double *>(outCol.data);
-            dst[row] = src[row];
+            dst[row] = (row < inCol.count) ? src[row] : 0.0;
             break;
         }
         case GPUDBMS::DataType::BOOL:
         {
             const bool *src = static_cast<const bool *>(inCol.data);
             bool *dst = static_cast<bool *>(outCol.data);
-            dst[row] = src[row];
+            dst[row] = (row < inCol.count) ? src[row] : false;
             break;
         }
-            // Add more cases as needed
+        case GPUDBMS::DataType::STRING:
+        case GPUDBMS::DataType::VARCHAR:
+        case GPUDBMS::DataType::DATE:
+        case GPUDBMS::DataType::DATETIME:
+        {
+            const char *src = static_cast<const char *>(inCol.data);
+            char *dst = static_cast<char *>(outCol.data);
+
+            // Ensure strides are properly set
+            size_t inStride = inCol.stride > 0 ? inCol.stride : 256; // Default stride if not set
+            size_t outStride = outCol.stride > 0 ? outCol.stride : inStride;
+
+            if (row < inCol.count)
+            {
+                const char *srcStr = src + row * inStride;
+                char *dstStr = dst + row * outStride;
+
+                // Copy string (assuming null-terminated)
+                int pos = 0;
+                while (pos < outStride && srcStr[pos] != '\0')
+                {
+                    dstStr[pos] = srcStr[pos];
+                    pos++;
+                }
+                if (pos < outStride)
+                {
+                    dstStr[pos] = '\0';
+                }
+            }
+            else
+            {
+                // Set to empty string for out-of-bounds rows
+                char *dstStr = dst + row * outStride;
+                if (outStride > 0)
+                {
+                    dstStr[0] = '\0';
+                }
+            }
+            break;
+        }
+        default:
+            break;
         }
     }
 }
@@ -80,6 +130,7 @@ extern "C" GPUDBMS::Table launchProjectKernel(
     std::vector<GPUDBMS::ColumnInfoGPU> outputColInfos;
     std::vector<void *> d_outputDataPointers;
 
+    // First pass: collect metadata and allocate output buffers
     for (const auto &colName : projectColumns)
     {
         auto it = columnNameToIndex.find(colName);
@@ -103,17 +154,38 @@ extern "C" GPUDBMS::Table launchProjectKernel(
         GPUDBMS::ColumnInfoGPU outCol;
         outCol.type = inCol.type;
         outCol.data = d_outputData;
+        outCol.count = rowCount;      // Set the correct row count
+        outCol.stride = inCol.stride; // Copy the stride from input
         outputColInfos.push_back(outCol);
+
     }
 
-    // Allocate and copy to device
+    // Second pass: copy input data to device
+    std::vector<GPUDBMS::ColumnInfoGPU> d_inputColInfos = inputColInfos;
+    for (size_t i = 0; i < inputColInfos.size(); ++i)
+    {
+        const auto &colInfo = inputColInfos[i];
+        size_t dataSize = getTypeSize(colInfo.type) * rowCount;
+
+        // Allocate device memory for input column data
+        void *d_inputData = nullptr;
+        cudaMalloc(&d_inputData, dataSize);
+
+        // Copy data from host to device
+        cudaMemcpy(d_inputData, colInfo.data, dataSize, cudaMemcpyHostToDevice);
+
+        // Update the column info with device pointer
+        d_inputColInfos[i].data = d_inputData;
+    }
+
+    // Allocate and copy metadata to device
     GPUDBMS::ColumnInfoGPU *d_inputCols = nullptr;
     GPUDBMS::ColumnInfoGPU *d_outputCols = nullptr;
     int *d_projIndices = nullptr;
 
-    cudaMalloc(&d_inputCols, inputColInfos.size() * sizeof(GPUDBMS::ColumnInfoGPU));
-    cudaMemcpy(d_inputCols, inputColInfos.data(),
-               inputColInfos.size() * sizeof(GPUDBMS::ColumnInfoGPU), cudaMemcpyHostToDevice);
+    cudaMalloc(&d_inputCols, d_inputColInfos.size() * sizeof(GPUDBMS::ColumnInfoGPU));
+    cudaMemcpy(d_inputCols, d_inputColInfos.data(),
+               d_inputColInfos.size() * sizeof(GPUDBMS::ColumnInfoGPU), cudaMemcpyHostToDevice);
 
     cudaMalloc(&d_outputCols, outputColInfos.size() * sizeof(GPUDBMS::ColumnInfoGPU));
     cudaMemcpy(d_outputCols, outputColInfos.data(),
@@ -131,35 +203,24 @@ extern "C" GPUDBMS::Table launchProjectKernel(
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    // Record the start event
     cudaEventRecord(start);
-
-    // Launch the project kernel
     projectKernel<<<numBlocks, blockSize>>>(
-        static_cast<int>(rowCount),
+        rowCount,
         d_inputCols,
-        static_cast<int>(inputCols.size()),
+        inputCols.size(),
         d_projIndices,
-        static_cast<int>(numProjectColumns),
+        numProjectColumns,
         d_outputCols);
-
-    // Record the stop event
     cudaEventRecord(stop);
 
-    // Wait for the events to complete
     cudaEventSynchronize(stop);
 
-    // Calculate the elapsed time
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-
-    // Print the kernel execution time
     std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
 
-    // Clean up events
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
-
     cudaDeviceSynchronize();
 
     // Copy output data back to host and construct result table
@@ -169,7 +230,6 @@ extern "C" GPUDBMS::Table launchProjectKernel(
     {
         size_t dataSize = getTypeSize(outputColInfos[i].type) * rowCount;
 
-        // Create the appropriate type of vector for the data
         if (outputColInfos[i].type == GPUDBMS::DataType::INT)
         {
             std::vector<int> h_outputData(rowCount);
@@ -182,7 +242,33 @@ extern "C" GPUDBMS::Table launchProjectKernel(
             cudaMemcpy(h_outputData.data(), d_outputDataPointers[i], dataSize, cudaMemcpyDeviceToHost);
             resultTable.setColumnData(i, h_outputData);
         }
-        // Add more cases as necessary for other data types
+        else if (outputColInfos[i].type == GPUDBMS::DataType::DOUBLE)
+        {
+            std::vector<double> h_outputData(rowCount);
+            cudaMemcpy(h_outputData.data(), d_outputDataPointers[i], dataSize, cudaMemcpyDeviceToHost);
+            resultTable.setColumnData(i, h_outputData);
+        }
+        else if (outputColInfos[i].type == GPUDBMS::DataType::BOOL)
+        {
+            std::vector<char> temp_buffer(rowCount);
+            cudaMemcpy(temp_buffer.data(), d_outputDataPointers[i], dataSize, cudaMemcpyDeviceToHost);
+
+            std::vector<bool> h_outputData(rowCount);
+            for (size_t j = 0; j < rowCount; ++j)
+            {
+                h_outputData[j] = temp_buffer[j] != 0;
+            }
+            resultTable.setColumnData(i, h_outputData);
+        }
+        else if (outputColInfos[i].type == GPUDBMS::DataType::STRING ||
+                 outputColInfos[i].type == GPUDBMS::DataType::VARCHAR ||
+                 outputColInfos[i].type == GPUDBMS::DataType::DATE ||
+                 outputColInfos[i].type == GPUDBMS::DataType::DATETIME)
+        {
+            std::vector<char> h_outputData(dataSize);
+            cudaMemcpy(h_outputData.data(), d_outputDataPointers[i], dataSize, cudaMemcpyDeviceToHost);
+            resultTable.setColumnData(i, h_outputData);
+        }
     }
 
     // Cleanup
@@ -190,6 +276,13 @@ extern "C" GPUDBMS::Table launchProjectKernel(
     {
         cudaFree(ptr);
     }
+
+    // Free input data copies on device
+    for (auto &colInfo : d_inputColInfos)
+    {
+        cudaFree(colInfo.data);
+    }
+
     cudaFree(d_inputCols);
     cudaFree(d_outputCols);
     cudaFree(d_projIndices);

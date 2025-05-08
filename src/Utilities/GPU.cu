@@ -77,3 +77,10 @@ __device__ int device_datetime_cmp(const char *dt1, const char *dt2)
 
     return 0;
 }
+
+__device__ void device_strcpy(char *dest, const char *src)
+{
+    while ((*dest++ = *src++))
+    {
+    }
+}

@@ -141,7 +141,16 @@ namespace GPUDBMS
             return std::make_unique<ColumnDataImpl<T>>();
         }
 
-        void appendFromRow(const ColumnData &source, int rowIndex) override;
+        void appendFromRow(const ColumnData &source, int rowIndex)
+        {
+            const auto &typedSource = static_cast<const ColumnDataImpl<T> &>(source);
+            if (rowIndex < 0 || rowIndex >= typedSource.size())
+            {
+                throw std::out_of_range("Row index out of range");
+            }
+            append(typedSource.getValue(rowIndex));
+        }
+
 
         void reserve(size_t count) override
         {
@@ -239,13 +248,45 @@ namespace GPUDBMS
             }
 
             auto columnType = m_columns[columnIndex].getType();
-            if (columnType != ColumnDataImpl<T>().getType())
+            auto inputType = ColumnDataImpl<T>().getType();
+
+            // Special handling for char vectors (typically used for string data)
+            if constexpr (std::is_same<T, char>::value)
             {
-                throw std::invalid_argument("Data type mismatch for column");
+                if (columnType == GPUDBMS::DataType::STRING ||
+                    columnType == GPUDBMS::DataType::VARCHAR ||
+                    columnType == GPUDBMS::DataType::DATE ||
+                    columnType == GPUDBMS::DataType::DATETIME)
+                {
+                    // Handle as string data
+                    auto &columnData = dynamic_cast<ColumnDataImpl<std::string> &>(*m_columnData[columnIndex]);
+                    std::string strData(data.begin(), data.end());
+                    columnData.getData() = std::vector<std::string>{strData};
+                    return;
+                }
             }
 
-            auto &columnData = dynamic_cast<ColumnDataImpl<T> &>(*m_columnData[columnIndex]);
-            columnData.getData() = data;
+            // Normal type checking for non-char cases
+            if (columnType != inputType)
+            {
+                throw std::invalid_argument("Data type mismatch for column " +
+                                            m_columns[columnIndex].getName() +
+                                            " expected " + std::to_string(static_cast<int>(columnType)) +
+                                            " but got " + std::to_string(static_cast<int>(inputType)));
+            }
+
+            // Standard handling for matching types
+            try
+            {
+                auto &columnData = dynamic_cast<ColumnDataImpl<T> &>(*m_columnData[columnIndex]);
+                columnData.getData() = data;
+            }
+            catch (const std::bad_cast &e)
+            {
+                throw std::invalid_argument("Type conversion failed for column " +
+                                            m_columns[columnIndex].getName() +
+                                            ": " + e.what());
+            }
         }
         /**
          * @brief Get all columns in the table

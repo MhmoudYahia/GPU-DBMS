@@ -21,57 +21,69 @@ using namespace GPUDBMS;
 Table createTestTable()
 {
     std::vector<Column> columns = {
-        Column("id", DataType::INT),
-        Column("name", DataType::VARCHAR),
-        Column("age", DataType::INT),
-        Column("salary", DataType::DOUBLE),
-        Column("isEmployed", DataType::BOOL),
-        Column("date", DataType::DATETIME),
+        Column("Product_id", DataType::INT),
+        Column("ProductName", DataType::VARCHAR),
+        Column("Price", DataType::DOUBLE),
+        Column("ReleaseDate", DataType::DATETIME),
     };
 
     Table table(columns);
 
-    // Add data to columns
-    auto &idCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("id"));
-    auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("name"));
-    auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
-    auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
-    auto &isEmployedCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("isEmployed"));
-    auto &dateCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("date"));
+    auto &idCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("Product_id"));
+    auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("ProductName"));
+    auto &priceCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("Price"));
+    auto &dateCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("ReleaseDate"));
 
-    for (int i = 1; i <= 10000000; i++)
+    // Base dataset (26 entries)
+    std::vector<std::tuple<int, std::string, double, std::string>> baseData = {
+        {101, "Widget A", 20.99, "2020-05-07 14:30:00"},
+        {102, "Gadget B", 99.99, "2021-04-22 16:10:00"},
+        {103, "Device C", 15.5, "2021-09-30 11:20:00"},
+        {104, "Equipment D", 45.75, "2022-05-15 09:45:00"},
+        {105, "Appliance E", 30.0, "2019-01-12 08:00:00"},
+        {106, "Tool F", 75.49, "2022-07-18 13:25:00"},
+        {107, "Component G", 12.99, "2020-11-03 10:15:00"},
+        {108, "Accessory H", 8.75, "2021-12-05 17:40:00"},
+        {109, "Instrument J", 149.99, "2022-02-28 14:50:00"},
+        {110, "System K", 199.99, "2019-06-14 09:30:00"},
+        {111, "Module L", 55.25, "2020-08-22 11:45:00"},
+        {112, "Kit M", 89.95, "2021-10-17 15:20:00"},
+        {113, "Unit N", 32.5, "2022-01-09 12:10:00"},
+        {114, "Bundle P", 125.0, "2019-09-29 10:05:00"},
+        {115, "Package Q", 67.8, "2020-03-11 16:35:00"},
+        {116, "Set R", 42.99, "2021-07-25 13:55:00"},
+        {117, "Assembly S", 95.45, "2022-04-03 09:15:00"},
+        {118, "Collection T", 110.25, "2019-11-18 14:40:00"},
+        {119, "Solution U", 135.5, "2020-12-07 10:50:00"},
+        {120, "Platform V", 175.0, "2021-05-31 16:25:00"},
+        {121, "Widget Pro", 24.99, "2020-06-15 13:30:00"},
+        {122, "Gadget XL", 119.99, "2021-05-12 14:15:00"},
+        {123, "Device Mini", 12.5, "2021-08-20 10:20:00"},
+        {124, "Equipment Plus", 55.75, "2022-04-25 08:45:00"},
+        {125, "Appliance Max", 35.0, "2019-02-22 09:10:00"},
+        {126, "Tool Set", 95.49, "2022-08-28 12:25:00"},
+    };
+
+    int idOffset = 0;
+    for (int i = 0; i < 150; ++i)
     {
-        idCol.append(i);
-        nameCol.append("Person" + std::to_string(i));
-        ageCol.append(i);
-        salaryCol.append(i);
-        isEmployedCol.append(i % 2 == 0);
-        dateCol.append("2023-10-" + std::to_string(i % 30 + 1) + " 12:00:00"); // Example datetime format
+        const auto &[idBase, nameBase, priceBase, dateBase] = baseData[i % baseData.size()];
 
-        // Finalize each row after adding all column values
+        int newId = idBase + idOffset;
+        std::string newName = nameBase + " #" + std::to_string(i + 1);
+        double newPrice = priceBase + (i % 5) * 1.1; // vary the price a bit
+        std::string newDate = dateBase;
+
+        idCol.append(newId);
+        nameCol.append(newName);
+        priceCol.append(newPrice);
+        dateCol.append(newDate);
+
         table.finalizeRow();
+
+        if ((i + 1) % baseData.size() == 0)
+            idOffset += 100; // increase ID range to avoid repetition
     }
-
-    // // Add an additional row for testing aggregations
-    // idCol.append(6);
-    // nameCol.append("Person" + std::to_string(6));
-    // ageCol.append(25);
-    // salaryCol.append(50000.0 + 1 * 10000.0);
-    // table.finalizeRow();
-
-    // // Add an additional row for testing
-    // idCol.append(7);
-    // nameCol.append("Person" + std::to_string(7));
-    // ageCol.append(35);
-    // salaryCol.append(70000.0 + 2 * 10000.0);
-    // table.finalizeRow();
-
-    // // Add an additional row for testing
-    // idCol.append(8);
-    // nameCol.append("Person" + std::to_string(8));
-    // ageCol.append(35);
-    // salaryCol.append(90000.0 + 3 * 10000.0);
-    // table.finalizeRow();
 
     return table;
 }
@@ -125,57 +137,66 @@ void testSelect()
 
 // Assuming you have a Table class, Project operation, and necessary dependencies defined
 
-// void testProject()
-// {
-//     std::cout << "Testing Project operation..." << std::endl;
+void testProject()
+{
+    std::cout << "Testing Project operation..." << std::endl;
 
-//     Table testTable = createTestTable();
+    Table testTable = createTestTable(); // Now returns the Product table
 
-//     // Test projection (id, name)
-//     std::vector<std::string> columns = {"id", "name"};
-//     Project projectOp(testTable, columns);
+    // Test projection (Product_id, ProductName)
+    std::vector<std::string> columns = {"Product_id", "ProductName"};
+    Project projectOp(testTable, columns);
 
-//     // Measure CPU execution time
-//     auto startCPU = std::chrono::high_resolution_clock::now();
+    // Measure CPU execution time
+    auto startCPU = std::chrono::high_resolution_clock::now();
 
-//     // Execute on CPU
-//     Table resultCPU = projectOp.execute();
+    // Execute on CPU
+    Table resultCPU = projectOp.execute();
 
-//     auto endCPU = std::chrono::high_resolution_clock::now();
-//     std::chrono::duration<float> durationCPU = endCPU - startCPU;
+    auto endCPU = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> durationCPU = endCPU - startCPU;
 
-//     assert(resultCPU.getColumnCount() == 2);
-//     assert(resultCPU.getColumnIndex("id") != -1);
-//     assert(resultCPU.getColumnIndex("name") != -1);
-//     assert(resultCPU.getColumnIndex("age") == -1);
+    assert(resultCPU.getColumnCount() == 2);
+    assert(resultCPU.getRowCount() == testTable.getRowCount());
+    assert(resultCPU.getColumnIndex("Product_id") != -1);
+    assert(resultCPU.getColumnIndex("ProductName") != -1);
+    assert(resultCPU.getColumnIndex("Price") == -1);
 
-//     std::cout << "CPU Project test passed!" << std::endl;
-//     std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
+    std::cout << "CPU Project test passed!" << std::endl;
+    std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
 
-//     // Measure GPU execution time (if available)
-//     try
-//     {
-//         auto startGPU = std::chrono::high_resolution_clock::now();
+    // Measure GPU execution time (if available)
+    try
+    {
+        auto startGPU = std::chrono::high_resolution_clock::now();
 
-//         // Execute on GPU
-//         Table resultGPU = projectOp.execute(USE_GPU);
+        // Execute on GPU
+        Table resultGPU = projectOp.execute(USE_GPU);
 
-//         auto endGPU = std::chrono::high_resolution_clock::now();
-//         std::chrono::duration<float> durationGPU = endGPU - startGPU;
+        auto endGPU = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> durationGPU = endGPU - startGPU;
 
-//         assert(resultGPU.getColumnCount() == 2);
-//         assert(resultGPU.getColumnIndex("id") != -1);
-//         assert(resultGPU.getColumnIndex("name") != -1);
-//         assert(resultGPU.getColumnIndex("age") == -1);
+        assert(resultGPU.getColumnCount() == 2);
+        assert(resultGPU.getRowCount() == testTable.getRowCount());
+        assert(resultGPU.getColumnIndex("Product_id") != -1);
+        assert(resultGPU.getColumnIndex("ProductName") != -1);
+        assert(resultGPU.getColumnIndex("Price") == -1);
 
-//         std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
-//         std::cout << "GPU Project test passed!" << std::endl;
-//     }
-//     catch (const std::exception &e)
-//     {
-//         std::cout << "GPU execution not available: " << e.what() << std::endl;
-//     }
-// }
+        for (size_t i = 0; i < resultGPU.getRowCount(); ++i)
+        {
+            std::cout << "Row " << i << ": " << resultGPU.getIntValue(resultGPU.getColumnIndex("Product_id"), i) << std::endl;
+            // assert(resultGPU.getIntValue(resultGPU.getColumnIndex("Product_id"), i) == resultCPU.getIntValue(resultCPU.getColumnIndex("Product_id"), i));
+            // assert(resultGPU.getStringValue(resultGPU.getColumnIndex("ProductName"), i) == resultCPU.getStringValue(resultCPU.getColumnIndex("ProductName"), i));
+        }
+
+        std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
+        std::cout << "GPU Project test passed!" << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cout << "GPU execution not available: " << e.what() << std::endl;
+    }
+}
 
 // Test complex condition
 void testComplexCondition()
@@ -1090,11 +1111,11 @@ int main(int argc, char **argv)
             std::cout << "Running test: " << testName << std::endl;
 
             // testSelect();
-            // testProject();
+            testProject();
             // testComplexCondition();
             // testFilter();
             // testOrderBy();
-            testAggregator();
+            // testAggregator();
             // testJoin();
             // testSQLQueryProcessor();
             // testCSVLoading();
