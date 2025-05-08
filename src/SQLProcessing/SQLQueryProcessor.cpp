@@ -144,7 +144,6 @@ namespace GPUDBMS
                                      (result.errorMsg() ? std::string(result.errorMsg()) : "Unknown error"));
         }
 
-        // Process each statement (we'll just handle the first one for now)
         if (result.size() > 0)
         {
             const hsql::SQLStatement *stmt = result.getStatement(0);
@@ -165,7 +164,6 @@ namespace GPUDBMS
         throw std::runtime_error("No SQL statements found");
     }
 
-    // Implementation for CREATE TABLE
     Table SQLQueryProcessor::executeCreateStatement(const hsql::CreateStatement *stmt)
     {
         if (stmt->type != hsql::kCreateTable)
@@ -173,17 +171,13 @@ namespace GPUDBMS
             throw std::runtime_error("Only CREATE TABLE is supported");
         }
 
-        // Create table from schema
         Table newTable = createTableFromSchema(stmt);
 
-        // Register the table
         tables[stmt->tableName] = newTable;
 
-        // Return the empty table
         return newTable;
     }
 
-    // Implementation for INSERT INTO
     Table SQLQueryProcessor::executeInsertStatement(const hsql::InsertStatement *stmt)
     {
         // Get the target table
