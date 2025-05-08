@@ -275,10 +275,10 @@ std::vector<ConditionGPU> parseConditions(const GPUDBMS::Table &m_inputTable, co
         case GPUDBMS::DataType::STRING:
         case GPUDBMS::DataType::VARCHAR:
         {
-            // Allocate memory for the string value (up to 256 chars)
-            char *buffer = new char[256];
-            strncpy(buffer, valueStr.c_str(), 255);
-            buffer[255] = '\0';
+            // Allocate memory for the exact string length plus null terminator
+            size_t strLength = valueStr.length() + 1;
+            char *buffer = new char[strLength];
+            strcpy(buffer, valueStr.c_str());
             condition.queryValue = static_cast<void *>(buffer);
             break;
         }
@@ -385,173 +385,33 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         return resultTable;
     }
 
-    // Debug
-    for (auto &cond : conditions)
-    {
-        std::cout << "Condition: " << cond.columnInfo.name << " ";
-        switch (cond.comparisonOp)
-        {
-        case GPUDBMS::ComparisonOperator::EQUAL:
-            std::cout << "==";
-            break;
-        case GPUDBMS::ComparisonOperator::NOT_EQUAL:
-            std::cout << "!=";
-            break;
-        case GPUDBMS::ComparisonOperator::LESS_THAN:
-            std::cout << "<";
-            break;
-        case GPUDBMS::ComparisonOperator::GREATER_THAN:
-            std::cout << ">";
-            break;
-        case GPUDBMS::ComparisonOperator::LESS_EQUAL:
-            std::cout << "<=";
-            break;
-        case GPUDBMS::ComparisonOperator::GREATER_EQUAL:
-            std::cout << ">=";
-            break;
-        }
-        std::cout << " ";
-
-        switch (cond.columnInfo.type)
-        {
-        case GPUDBMS::DataType::INT:
-            std::cout << *static_cast<const int *>(cond.queryValue);
-            break;
-        case GPUDBMS::DataType::FLOAT:
-            std::cout << *static_cast<const float *>(cond.queryValue);
-            break;
-        case GPUDBMS::DataType::DOUBLE:
-            std::cout << *static_cast<const double *>(cond.queryValue);
-            break;
-        case GPUDBMS::DataType::BOOL:
-            std::cout << (*static_cast<const bool *>(cond.queryValue) ? "true" : "false");
-            break;
-        case GPUDBMS::DataType::STRING:
-        case GPUDBMS::DataType::VARCHAR:
-            std::cout << static_cast<const char *>(cond.queryValue);
-            break;
-        default:
-            std::cout << "[unknown type]";
-        }
-        std::cout << std::endl;
-    }
-
-    // Allocate memory for output flags
-    bool *h_outputFlags;
-    cudaMallocHost((void **)&h_outputFlags, rowCount * sizeof(bool));
+    bool *h_outputFlags = new bool[rowCount];
     std::fill(h_outputFlags, h_outputFlags + rowCount, false);
 
-    // Prepare device memory for conditions and their data
-    ConditionGPU *d_conditions = nullptr;
-    cudaMalloc((void **)&d_conditions, conditions.size() * sizeof(ConditionGPU));
-
-    // Create a copy of conditions that we'll modify to point to device memory
-    std::vector<ConditionGPU> device_conditions = conditions;
-
-    // Allocate memory for each condition's data and query value
-    for (size_t i = 0; i < conditions.size(); i++)
+    cudaError_t initErr = cudaFree(0);
+    if (initErr != cudaSuccess)
     {
-        // 1. Flatten all strings into a big buffer
-        std::vector<size_t> offsets(rowCount);
-        size_t totalBytes = 0;
-
-        const char **h_colData = static_cast<const char **>(conditions[i].columnInfo.data);
-
-        // Calculate total size and offsets
-        const size_t MAX_STRING_LENGTH = 1024 * 1024; // 1MB max
-
-        for (int row = 0; row < rowCount; row++)
-        {
-            offsets[row] = SIZE_MAX;
-
-            if (h_colData == nullptr || h_colData[row] == nullptr)
-            {
-                continue;
-            }
-
-            // Try standard strlen first (faster for valid strings)
-            size_t len = strlen(h_colData[row]);
-
-            // Fallback to manual check if strlen crashes
-            if (len > MAX_STRING_LENGTH)
-            {
-                len = 0;
-                while (len < MAX_STRING_LENGTH && h_colData[row][len] != '\0')
-                {
-                    len++;
-                }
-                if (len >= MAX_STRING_LENGTH)
-                {
-                    continue; // skip invalid string
-                }
-            }
-
-            offsets[row] = totalBytes;
-            totalBytes += len + 1;
-        }
-
-        // Allocate and fill big buffer on host
-        char *flatBuffer = new char[totalBytes];
-        char **h_devicePointers = new char *[rowCount];
-
-        size_t cursor = 0;
-        for (int row = 0; row < rowCount; row++)
-        {
-            if (offsets[row] != SIZE_MAX)
-            {
-                size_t len = strlen(h_colData[row]) + 1;
-                memcpy(&flatBuffer[cursor], h_colData[row], len);
-                h_devicePointers[row] = &flatBuffer[cursor];
-                cursor += len;
-            }
-            else
-            {
-                h_devicePointers[row] = nullptr;
-            }
-        }
-
-        // 2. Copy flat buffer to device
-        char *d_flatBuffer = nullptr;
-        cudaMalloc(&d_flatBuffer, totalBytes);
-        cudaMemcpy(d_flatBuffer, flatBuffer, totalBytes, cudaMemcpyHostToDevice);
-
-        // 3. Adjust device pointers to point into flat buffer
-        for (int row = 0; row < rowCount; row++)
-        {
-            if (h_devicePointers[row])
-                h_devicePointers[row] = d_flatBuffer + (h_devicePointers[row] - flatBuffer); // device offset
-        }
-
-        // 4. Copy pointer array to device
-        char **d_pointerArray = nullptr;
-        cudaMalloc(&d_pointerArray, sizeof(char *) * rowCount);
-        cudaMemcpy(d_pointerArray, h_devicePointers, sizeof(char *) * rowCount, cudaMemcpyHostToDevice);
-
-        // Done!
-        device_conditions[i].columnInfo.data = d_pointerArray;
-
-        // 5. Copy query string as usual
-        const char *h_query = static_cast<const char *>(conditions[i].queryValue);
-        if (h_query != nullptr)
-        {
-            size_t len = strlen(h_query) + 1;
-            char *d_query;
-            cudaMalloc(&d_query, len);
-            cudaMemcpy(d_query, h_query, len, cudaMemcpyHostToDevice);
-            device_conditions[i].queryValue = d_query;
-        }
-        else
-        {
-            device_conditions[i].queryValue = nullptr;
-        }
-
-        // Free host allocations
-        delete[] flatBuffer;
-        delete[] h_devicePointers;
+        std::cerr << "Failed to initialize CUDA: " << cudaGetErrorString(initErr) << std::endl;
+        return resultTable;
     }
 
-    // Copy the modified conditions to device
-    cudaMemcpy(d_conditions, device_conditions.data(), conditions.size() * sizeof(ConditionGPU), cudaMemcpyHostToDevice);
+    size_t free_memory,
+        total_memory;
+    cudaError_t error = cudaMemGetInfo(&free_memory, &total_memory);
+    if (error != cudaSuccess)
+    {
+        std::cerr << "Error getting GPU memory info: " << cudaGetErrorString(error) << std::endl;
+    }
+    else
+    {
+        std::cout << "GPU Memory - Free: " << free_memory / 1024 / 1024
+                  << " MB, Total: " << total_memory / 1024 / 1024
+                  << " MB, Used: " << (total_memory - free_memory) / 1024 / 1024
+                  << " MB" << std::endl;
+    }
+
+    ConditionGPU *d_conditions = nullptr;
+    CUDA_CHECK(cudaMalloc((void **)&d_conditions, conditions.size() * sizeof(ConditionGPU)));
 
     // Allocate device memory for output flags
     bool *d_outputFlags;
@@ -571,9 +431,6 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         rowCount,
         conditions.size(),
         d_conditions,
-        // d_columnInfos,
-        // d_outputFlags,
-        // d_queryValues.data()
         d_outputFlags);
     cudaEventRecord(stop);
 
@@ -618,7 +475,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
         }
     }
 
-    cudaFreeHost(h_outputFlags);
+    delete[] h_outputFlags;
 
     return m_inputTable.getSlicedTable(includedRows);
 }
