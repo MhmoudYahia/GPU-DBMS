@@ -181,6 +181,70 @@ namespace GPUDBMS
         }
     }
 
+    // to be used inside JoinKernel
+    template <typename T>
+    bool ComparisonCondition::evaluate(int typeEnum, T leftValue, T rightValue){ 
+        switch (m_operator)
+        {
+        case ComparisonOperator::EQUAL:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) == 0;
+            else
+                return leftValue == rightValue;
+        case ComparisonOperator::NOT_EQUAL:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) != 0;
+            else
+                return leftValue != rightValue;
+        case ComparisonOperator::LESS_THAN:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) < 0;
+            else
+                return leftValue < rightValue;
+        case ComparisonOperator::LESS_EQUAL:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) <= 0;
+            else
+                return leftValue <= rightValue;
+        case ComparisonOperator::GREATER_THAN:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) > 0;
+            else
+                return leftValue > rightValue;
+        case ComparisonOperator::GREATER_EQUAL:
+            if (typeEnum == DataType::DATETIME || typeEnum == DataType::DATE)
+                return compareDateTime(leftValue, rightValue) >= 0;
+            else
+                return leftValue >= rightValue;
+        case ComparisonOperator::LIKE:
+        {
+            // Simple wildcard pattern matching (% matches any sequence)
+            std::string pattern = rightValue;
+            // Replace % with regex .*
+            std::string regexPattern;
+            for (char c : pattern)
+            {
+                if (c == '%')
+                {
+                    regexPattern += ".*";
+                }
+                else
+                {
+                    regexPattern += c;
+                }
+            }
+            std::regex regex(regexPattern);
+            return std::regex_match(leftValue, regex);
+        }
+        case ComparisonOperator::IN:
+            // Simple implementation - assumes value is comma-separated list
+            return m_value.find(leftValue) != std::string::npos;
+        default:
+            return false;
+        }
+
+    }
+
     // Add this helper method to ComparisonCondition class
     int ComparisonCondition::compareDateTime(const std::string &dateTime1, const std::string &dateTime2) const
     {
