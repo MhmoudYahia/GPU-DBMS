@@ -336,7 +336,7 @@ namespace GPUDBMS
             // Join joinOp(leftTable, rightTable, *joinCondition, joinType);
             Join joinOp(leftTable, rightTable, *joinCondition);
 
-            resultTable = joinOp.execute(useGPU && false);
+            resultTable = joinOp.execute(useGPU);
         }
         // else if (stmt->fromTable->type == hsql::kTableCrossProduct)
         // {
@@ -492,10 +492,10 @@ namespace GPUDBMS
             }
 
             Aggregator aggregator(resultTable, aggregations, groupByColumn);
-            resultTable = aggregator.execute(useGPU && false);
+            resultTable = aggregator.execute(useGPU);
         }
         // If no aggregation, handle normal SELECT (projection)
-        else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar && false)
+        else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
         {
             std::vector<std::string> projectColumns;
             for (auto &col : *stmt->selectList)
@@ -527,7 +527,7 @@ namespace GPUDBMS
             {
                 resultTable.printTableInfo();
                 Project projectOp(resultTable, projectColumns);
-                resultTable = projectOp.execute(useGPU && false);
+                resultTable = projectOp.execute(useGPU);
             }
         }
 
@@ -542,7 +542,7 @@ namespace GPUDBMS
                 {
                     SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
                     OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
-                    resultTable = orderByOp.execute(useGPU && false);
+                    resultTable = orderByOp.execute(useGPU );
                 }
                 else
                 {
@@ -569,7 +569,7 @@ namespace GPUDBMS
                 }
 
                 OrderBy orderByOp(resultTable, sortColumns, sortOrders);
-                resultTable = orderByOp.execute(useGPU && false);
+                resultTable = orderByOp.execute(useGPU);
             }
         }
 

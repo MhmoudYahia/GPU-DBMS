@@ -475,7 +475,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
             delete[] static_cast<char *>(cond.columnInfo.data);
 
             cond.columnInfo.data = d_buffer;
-            // break;
+            break;
         }
         else
         {

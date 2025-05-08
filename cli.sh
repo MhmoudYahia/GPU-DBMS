@@ -4,7 +4,7 @@
 # Yehia Path: /mnt/g/MyRepos/SQLQueryProcessor/data
 
 # Default settings
-DATA_DIR="/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data"
+DATA_DIR="/mnt/g/MyRepos/SQLQueryProcessor/data"
 MODE="cli"
 TEST_NAME=""
 GPU_MODE="on"
