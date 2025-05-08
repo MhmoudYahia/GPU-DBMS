@@ -1,7 +1,7 @@
 #include "../../include/DataHandling/Condition.hpp"
 #include "../../include/DataHandling/ConditionGPU.cuh"
-#include <iomanip>  // For std::get_time
-#include <ctime> 
+#include <iomanip> // For std::get_time
+#include <ctime>
 #include <algorithm>
 #include "../../include/DataHandling/Table.hpp" // Include the header defining DataType
 #include <regex>
@@ -179,6 +179,75 @@ namespace GPUDBMS
             return m_value.find(cellValue) != std::string::npos;
         default:
             return false;
+        }
+    }
+
+    // Add implementation for ComparisonCondition::toString()
+    std::string ComparisonCondition::toString() const
+    {
+        std::string opStr;
+        switch (m_operator)
+        {
+        case ComparisonOperator::EQUAL:
+            opStr = " = ";
+            break;
+        case ComparisonOperator::NOT_EQUAL:
+            opStr = " != ";
+            break;
+        case ComparisonOperator::LESS_THAN:
+            opStr = " < ";
+            break;
+        case ComparisonOperator::LESS_EQUAL:
+            opStr = " <= ";
+            break;
+        case ComparisonOperator::GREATER_THAN:
+            opStr = " > ";
+            break;
+        case ComparisonOperator::GREATER_EQUAL:
+            opStr = " >= ";
+            break;
+        case ComparisonOperator::LIKE:
+            opStr = " LIKE ";
+            break;
+        case ComparisonOperator::IN:
+            opStr = " IN ";
+            break;
+        }
+
+        return m_columnName + opStr + m_value;
+    }
+
+    // Add implementation for LogicalCondition::toString()
+    std::string LogicalCondition::toString() const
+    {
+        std::string opStr;
+        switch (m_operator)
+        {
+        case LogicalOperator::AND:
+            opStr = " AND ";
+            break;
+        case LogicalOperator::OR:
+            opStr = " OR ";
+            break;
+        case LogicalOperator::NOT:
+            opStr = "NOT ";
+            break;
+        case LogicalOperator::NONE:
+            opStr = "";
+            break;
+        }
+
+        if (m_operator == LogicalOperator::NOT)
+        {
+            return opStr + "(" + m_left->toString() + ")";
+        }
+        else if (m_right) // AND or OR
+        {
+            return "(" + m_left->toString() + ")" + opStr + "(" + m_right->toString() + ")";
+        }
+        else // Just one operand
+        {
+            return m_left->toString();
         }
     }
 
@@ -424,4 +493,259 @@ namespace GPUDBMS
         return std::make_unique<LogicalCondition>(std::move(condition), LogicalOperator::NOT);
     }
 
+    // Add implementation for ColumnComparisonCondition
+
+    // ColumnComparisonCondition implementation
+    ColumnComparisonCondition::ColumnComparisonCondition(const std::string &leftColumn, ComparisonOperator op, const std::string &rightColumn)
+        : m_leftColumn(leftColumn), m_operator(op), m_rightColumn(rightColumn)
+    {
+    }
+
+    ColumnComparisonCondition::ColumnComparisonCondition(const ColumnComparisonCondition &other)
+        : m_leftColumn(other.m_leftColumn), m_operator(other.m_operator), m_rightColumn(other.m_rightColumn)
+    {
+    }
+
+    ColumnComparisonCondition &ColumnComparisonCondition::operator=(const ColumnComparisonCondition &other)
+    {
+        if (this != &other)
+        {
+            m_leftColumn = other.m_leftColumn;
+            m_operator = other.m_operator;
+            m_rightColumn = other.m_rightColumn;
+        }
+        return *this;
+    }
+
+    ColumnComparisonCondition::ColumnComparisonCondition(ColumnComparisonCondition &&other) noexcept
+        : m_leftColumn(std::move(other.m_leftColumn)), m_operator(other.m_operator), m_rightColumn(std::move(other.m_rightColumn))
+    {
+    }
+
+    ColumnComparisonCondition &ColumnComparisonCondition::operator=(ColumnComparisonCondition &&other) noexcept
+    {
+        if (this != &other)
+        {
+            m_leftColumn = std::move(other.m_leftColumn);
+            m_operator = other.m_operator;
+            m_rightColumn = std::move(other.m_rightColumn);
+        }
+        return *this;
+    }
+
+    bool ColumnComparisonCondition::evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row,
+                                             std::unordered_map<std::string, int> columnNameToIndex) const
+    {
+        // Find indices of left and right columns
+        auto leftIt = columnNameToIndex.find(m_leftColumn);
+        auto rightIt = columnNameToIndex.find(m_rightColumn);
+
+        if (leftIt == columnNameToIndex.end() || rightIt == columnNameToIndex.end())
+        {
+            return false; // Column not found
+        }
+
+        int leftIndex = leftIt->second;
+        int rightIndex = rightIt->second;
+
+        if (leftIndex >= row.size() || rightIndex >= row.size() ||
+            leftIndex >= colsType.size() || rightIndex >= colsType.size())
+        {
+            return false; // Invalid index
+        }
+
+        const std::string &leftValue = row[leftIndex];
+        const std::string &rightValue = row[rightIndex];
+        const DataType &leftType = colsType[leftIndex];
+        const DataType &rightType = colsType[rightIndex];
+
+        // Compare based on data types
+        switch (m_operator)
+        {
+        case ComparisonOperator::EQUAL:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) == std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) == std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) == 0;
+            }
+            else
+                return leftValue == rightValue;
+        case ComparisonOperator::NOT_EQUAL:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) != std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) != std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) != 0;
+            }
+            else
+                return leftValue != rightValue;
+        case ComparisonOperator::LESS_THAN:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) < std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) < std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) < 0;
+            }
+            else
+                return leftValue < rightValue;
+        case ComparisonOperator::LESS_EQUAL:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) <= std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) <= std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) <= 0;
+            }
+            else
+                return leftValue <= rightValue;
+        case ComparisonOperator::GREATER_THAN:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) > std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) > std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) > 0;
+            }
+            else
+                return leftValue > rightValue;
+        case ComparisonOperator::GREATER_EQUAL:
+            if (leftType == DataType::INT && rightType == DataType::INT)
+                return std::stoi(leftValue) >= std::stoi(rightValue);
+            else if ((leftType == DataType::FLOAT || leftType == DataType::DOUBLE) &&
+                     (rightType == DataType::FLOAT || rightType == DataType::DOUBLE))
+                return std::stof(leftValue) >= std::stof(rightValue);
+            else if ((leftType == DataType::DATETIME || leftType == DataType::DATE) &&
+                     (rightType == DataType::DATETIME || rightType == DataType::DATE))
+            {
+                ComparisonCondition tempCond("", ComparisonOperator::EQUAL, "");
+                return tempCond.compareDateTime(leftValue, rightValue) >= 0;
+            }
+            else
+                return leftValue >= rightValue;
+        default:
+            return false;
+        }
+    }
+
+    std::string ColumnComparisonCondition::toString() const
+    {
+        std::string opStr;
+        switch (m_operator)
+        {
+        case ComparisonOperator::EQUAL:
+            opStr = " = ";
+            break;
+        case ComparisonOperator::NOT_EQUAL:
+            opStr = " != ";
+            break;
+        case ComparisonOperator::LESS_THAN:
+            opStr = " < ";
+            break;
+        case ComparisonOperator::LESS_EQUAL:
+            opStr = " <= ";
+            break;
+        case ComparisonOperator::GREATER_THAN:
+            opStr = " > ";
+            break;
+        case ComparisonOperator::GREATER_EQUAL:
+            opStr = " >= ";
+            break;
+        default:
+            opStr = " ?? ";
+            break;
+        }
+
+        return m_leftColumn + opStr + m_rightColumn;
+    }
+
+    std::string ColumnComparisonCondition::getCUDACondition() const
+    {
+        std::string opStr;
+        switch (m_operator)
+        {
+        case ComparisonOperator::EQUAL:
+            opStr = "==";
+            break;
+        case ComparisonOperator::NOT_EQUAL:
+            opStr = "!=";
+            break;
+        case ComparisonOperator::LESS_THAN:
+            opStr = "<";
+            break;
+        case ComparisonOperator::LESS_EQUAL:
+            opStr = "<=";
+            break;
+        case ComparisonOperator::GREATER_THAN:
+            opStr = ">";
+            break;
+        case ComparisonOperator::GREATER_EQUAL:
+            opStr = ">=";
+            break;
+        default:
+            opStr = "??";
+            break;
+        }
+
+        return "(" + m_leftColumn + " " + opStr + " " + m_rightColumn + ")";
+    }
+
+    std::unique_ptr<Condition> ColumnComparisonCondition::clone() const
+    {
+        return std::make_unique<ColumnComparisonCondition>(m_leftColumn, m_operator, m_rightColumn);
+    }
+
+    // Implement the new ConditionBuilder methods
+    std::unique_ptr<Condition> ConditionBuilder::columnEquals(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::EQUAL, rightColumn);
+    }
+
+    std::unique_ptr<Condition> ConditionBuilder::columnNotEquals(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::NOT_EQUAL, rightColumn);
+    }
+
+    std::unique_ptr<Condition> ConditionBuilder::columnLessThan(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::LESS_THAN, rightColumn);
+    }
+
+    std::unique_ptr<Condition> ConditionBuilder::columnLessEqual(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::LESS_EQUAL, rightColumn);
+    }
+
+    std::unique_ptr<Condition> ConditionBuilder::columnGreaterThan(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::GREATER_THAN, rightColumn);
+    }
+
+    std::unique_ptr<Condition> ConditionBuilder::columnGreaterEqual(const std::string &leftColumn, const std::string &rightColumn)
+    {
+        return std::make_unique<ColumnComparisonCondition>(leftColumn, ComparisonOperator::GREATER_EQUAL, rightColumn);
+    }
 } // namespace GPUDBMS

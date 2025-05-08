@@ -343,7 +343,6 @@ namespace GPUDBMS
         }
         return *this;
     }
-
     Table &Table::operator=(Table &&other) noexcept
     {
         if (this != &other)

@@ -26,7 +26,6 @@ namespace GPUDBMS
         IN
     };
 
-
     /**
      * @enum LogicalOperator
      * @brief Enumeration of logical operators for combining conditions
@@ -53,21 +52,30 @@ namespace GPUDBMS
         Condition(Condition &&other) noexcept;            // Move constructor
         Condition &operator=(Condition &&other) noexcept; // Move assignment operator
         Condition &operator=(const Condition &other);     // Copy assignment operator
+
         /**
          * @brief Evaluate the condition for a given row
          *
+         * @param colsType The types of columns in the row
          * @param row The row data to evaluate against
-         * @param columnIndices The indices of columns in the row
+         * @param columnNameToIndex Map of column names to their indices in the row
          * @return bool Whether the condition is satisfied
          */
         virtual bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
-        // virtual bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const = 0;
+
         /**
          * @brief Get the CUDA compatible condition string for GPU execution
          *
          * @return std::string A string representation of the condition for CUDA kernels
          */
         virtual std::string getCUDACondition() const = 0;
+
+        /**
+         * @brief Get a human-readable string representation of the condition
+         *
+         * @return std::string A string representation of the condition
+         */
+        virtual std::string toString() const = 0;
 
         /**
          * @brief Clone the condition
@@ -99,9 +107,9 @@ namespace GPUDBMS
         ~ComparisonCondition() override = default;
 
         bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
-        // bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
 
         std::string getCUDACondition() const override;
+        std::string toString() const override;
         std::unique_ptr<Condition> clone() const override;
 
         int compareDateTime(const std::string &dateTime1, const std::string &dateTime2) const;
@@ -149,9 +157,9 @@ namespace GPUDBMS
         LogicalCondition(std::unique_ptr<Condition> left, LogicalOperator op, std::unique_ptr<Condition> right = nullptr);
 
         bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
-        // bool* evaluateGPU(const std::vector<DataType> &colsType, const std::vector<std::string> &row, std::unordered_map<std::string, int> columnNameToIndex) const override;
 
         std::string getCUDACondition() const override;
+        std::string toString() const override;
         std::unique_ptr<Condition> clone() const override;
 
     private:
@@ -175,10 +183,52 @@ namespace GPUDBMS
         static std::unique_ptr<Condition> greaterEqual(const std::string &columnName, const std::string &value);
         static std::unique_ptr<Condition> like(const std::string &columnName, const std::string &pattern);
 
+        // Add column-to-column comparison methods
+        static std::unique_ptr<Condition> columnEquals(const std::string &leftColumn, const std::string &rightColumn);
+        static std::unique_ptr<Condition> columnNotEquals(const std::string &leftColumn, const std::string &rightColumn);
+        static std::unique_ptr<Condition> columnLessThan(const std::string &leftColumn, const std::string &rightColumn);
+        static std::unique_ptr<Condition> columnLessEqual(const std::string &leftColumn, const std::string &rightColumn);
+        static std::unique_ptr<Condition> columnGreaterThan(const std::string &leftColumn, const std::string &rightColumn);
+        static std::unique_ptr<Condition> columnGreaterEqual(const std::string &leftColumn, const std::string &rightColumn);
+
         static std::unique_ptr<Condition> And(std::unique_ptr<Condition> left, std::unique_ptr<Condition> right);
         static std::unique_ptr<Condition> Or(std::unique_ptr<Condition> left, std::unique_ptr<Condition> right);
         static std::unique_ptr<Condition> Not(std::unique_ptr<Condition> condition);
     };
+
+    /**
+ * @class ColumnComparisonCondition
+ * @brief Represents a comparison between two columns
+ */
+class ColumnComparisonCondition : public Condition
+{
+public:
+    /**
+     * @brief Construct a column-to-column comparison condition
+     *
+     * @param leftColumn The name of the left column to compare
+     * @param op The comparison operator
+     * @param rightColumn The name of the right column to compare against
+     */
+    ColumnComparisonCondition(const std::string &leftColumn, ComparisonOperator op, const std::string &rightColumn);
+    ColumnComparisonCondition(const ColumnComparisonCondition &other);
+    ColumnComparisonCondition &operator=(const ColumnComparisonCondition &other);
+    ColumnComparisonCondition(ColumnComparisonCondition &&other) noexcept;
+    ColumnComparisonCondition &operator=(ColumnComparisonCondition &&other) noexcept;
+    ~ColumnComparisonCondition() override = default;
+
+    bool evaluate(const std::vector<DataType> &colsType, const std::vector<std::string> &row, 
+                 std::unordered_map<std::string, int> columnNameToIndex) const override;
+
+    std::string getCUDACondition() const override;
+    std::string toString() const override;
+    std::unique_ptr<Condition> clone() const override;
+
+private:
+    std::string m_leftColumn;
+    ComparisonOperator m_operator;
+    std::string m_rightColumn;
+};
 
 } // namespace GPUDBMS
 

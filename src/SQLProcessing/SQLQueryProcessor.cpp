@@ -132,7 +132,7 @@ namespace GPUDBMS
         // Cleanup if needed
     }
 
-    Table SQLQueryProcessor::processQuery(const std::string &query, bool useGPU) 
+    Table SQLQueryProcessor::processQuery(const std::string &query, bool useGPU)
     {
         // Parse the SQL query
         hsql::SQLParserResult result;
@@ -513,23 +513,22 @@ namespace GPUDBMS
                 if (expr->type == hsql::kExprColumnRef)
                 {
                     std::string columnName;
-                    
+
                     // Handle table aliases in column references
                     if (expr->table)
                     {
                         // Just use the column name without the table alias
                         columnName = expr->name;
-                        
                     }
                     else
                     {
                         columnName = expr->name;
                     }
-                    
+
                     projectColumns.push_back(columnName);
                 }
             }
-        
+
             if (!projectColumns.empty())
             {
                 Project projectOp(resultTable, projectColumns);
@@ -606,6 +605,30 @@ namespace GPUDBMS
         {
         case hsql::kExprOperator:
         {
+            // Handle column-to-column comparison (for JOIN conditions)
+            if (expr->expr->type == hsql::kExprColumnRef && expr->expr2->type == hsql::kExprColumnRef)
+            {
+                std::string leftColumn = expr->expr->name;
+                std::string rightColumn = expr->expr2->name;
+
+                switch (expr->opType)
+                {
+                case hsql::kOpEquals:
+                    return ConditionBuilder::columnEquals(leftColumn, rightColumn);
+                case hsql::kOpNotEquals:
+                    return ConditionBuilder::columnNotEquals(leftColumn, rightColumn);
+                case hsql::kOpLess:
+                    return ConditionBuilder::columnLessThan(leftColumn, rightColumn);
+                case hsql::kOpLessEq:
+                    return ConditionBuilder::columnLessEqual(leftColumn, rightColumn);
+                case hsql::kOpGreater:
+                    return ConditionBuilder::columnGreaterThan(leftColumn, rightColumn);
+                case hsql::kOpGreaterEq:
+                    return ConditionBuilder::columnGreaterEqual(leftColumn, rightColumn);
+                default:
+                    throw std::runtime_error("Unsupported column comparison operator in JOIN condition");
+                }
+            }
             if (expr->expr2->type == hsql::kExprLiteralString)
             {
                 // Get the column name from expr

@@ -10,7 +10,7 @@
 #include "../include/Operations/OrderBy.hpp"
 #include "../include/Operations/Aggregator.hpp"
 #include "../include/Operations/Project.hpp"
-// #include "../include/Operations/Join.hpp"
+#include "../include/Operations/Join.hpp"
 #include "../include/SQLProcessing/SQLQueryProcessor.hpp"
 #include "../include/CLI/CommandLineInterface.hpp"
 #define USE_GPU 1
@@ -514,94 +514,6 @@ void testAggregator()
 
     std::cout << "\nAll CPU Aggregator tests passed!" << std::endl;
 }
-// void testJoin()
-// {
-//     std::cout << "Testing Join operation..." << std::endl;
-
-//     // Create two test tables for joining
-//     Table leftTable = createTestTable(); // This is our existing test table
-
-//     // Create a second test table with ids that will match some from the first table
-//     std::vector<Column> rightColumns = {
-//         Column("id", DataType::INT),
-//         Column("department", DataType::VARCHAR),
-//         Column("location", DataType::VARCHAR)};
-
-//     Table rightTable(rightColumns);
-
-//     // Add data to the right table
-//     auto &rightIdCol = static_cast<ColumnDataImpl<int> &>(rightTable.getColumnData("id"));
-//     auto &rightDeptCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("department"));
-//     auto &rightLocCol = static_cast<ColumnDataImpl<std::string> &>(rightTable.getColumnData("location"));
-
-//     // Add some rows that will match (id: 2, 4) and some that won't
-//     rightIdCol.append(2);
-//     rightDeptCol.append("Engineering");
-//     rightLocCol.append("Building A");
-
-//     rightIdCol.append(4);
-//     rightDeptCol.append("Marketing");
-//     rightLocCol.append("Building B");
-
-//     rightIdCol.append(6);
-//     rightDeptCol.append("Finance");
-//     rightLocCol.append("Building C");
-
-//     // Finalize rows
-//     rightTable.finalizeRow();
-//     rightTable.finalizeRow();
-//     rightTable.finalizeRow();
-
-//     // Create join condition: leftTable.id = rightTable.id
-//     auto joinCondition = ConditionBuilder::equals("id", "id");
-//     // Test INNER JOIN
-//     Join innerJoinOp(leftTable, rightTable, *joinCondition, JoinType::INNER);
-//     Table innerJoinResult = innerJoinOp.executeCPU();
-
-//     // Verify inner join results
-//     assert(innerJoinResult.getRowCount() == 2); // Should match 2 rows (id 2 and 4)
-//     assert(innerJoinResult.getColumnCount() == leftTable.getColumnCount() + rightTable.getColumnCount());
-
-//     // Verify some values from the joined rows
-//     int leftIdCol = innerJoinResult.getColumnIndex("id");
-
-//     // Check that the join contains the expected IDs
-//     std::vector<int> expectedIds = {2, 4}; // IDs that should be in the join result
-//     bool foundId2 = false;
-//     bool foundId4 = false;
-
-//     for (size_t row = 0; row < innerJoinResult.getRowCount(); ++row)
-//     {
-//         int rowId = innerJoinResult.getIntValue(leftIdCol, row);
-//         if (rowId == 2)
-//             foundId2 = true;
-//         if (rowId == 4)
-//             foundId4 = true;
-//     }
-
-//     assert(foundId2 && foundId4);
-
-//     // Test LEFT JOIN
-//     Join leftJoinOp(leftTable, rightTable, *joinCondition, JoinType::LEFT);
-//     Table leftJoinResult = leftJoinOp.executeCPU();
-
-//     // Verify left join results
-//     assert(leftJoinResult.getRowCount() == 5); // Should include all rows from left table
-
-//     // Try on GPU if available
-//     try
-//     {
-//         Table resultGPU = innerJoinOp.execute();
-//         assert(resultGPU.getRowCount() == 2);
-//         std::cout << "GPU Join test passed!" << std::endl;
-//     }
-//     catch (const std::exception &e)
-//     {
-//         std::cout << "GPU execution not available: " << e.what() << std::endl;
-//     }
-
-//     std::cout << "CPU Join test passed!" << std::endl;
-// }
 
 void testSelectQueryParser(SQLQueryProcessor &processor)
 {
@@ -1037,11 +949,76 @@ void showHelp()
     std::cout << "If no options are provided, the CLI will start with the default data directory." << std::endl;
 }
 
+
+void testProductOrderJoin()
+{
+    std::cout << "=== Testing SalesOrders-Products JOIN ===" << std::endl;
+    
+    try 
+    {
+        // Initialize SQLQueryProcessor with the data directory
+        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+        
+        // Print table information to verify tables are loaded correctly
+        std::cout << "\n--- Products Table Info ---" << std::endl;
+        Table productsTable = processor.getTable("Products");
+        std::cout << "Products table loaded with " << productsTable.getRowCount() << " rows and " 
+                  << productsTable.getColumnCount() << " columns" << std::endl;
+        
+        std::cout << "\n--- SalesOrders Table Info ---" << std::endl;
+        Table salesOrdersTable = processor.getTable("SalesOrders");
+        std::cout << "SalesOrders table loaded with " << salesOrdersTable.getRowCount() << " rows and " 
+                  << salesOrdersTable.getColumnCount() << " columns" << std::endl;
+        
+        std::cout << "\nExecuting query: SELECT o.Orders_id, o.CustomerName, p.ProductName, p.Price, o.TotalAmount "
+                  << "FROM SalesOrders o JOIN Products p ON o.Products_id = p.Products_id" << std::endl;
+
+        // Execute the query and measure performance
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        Table result = processor.processQuery(
+            "SELECT o.Orders_id, o.CustomerName, p.ProductName, p.Price, o.TotalAmount "
+            "FROM SalesOrders o JOIN Products p ON o.Products_id = p.Products_id;");
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        
+        // Print the results
+        std::cout << "\nJOIN Result (" << result.getRowCount() << " rows) | Execution time: " 
+                  << duration.count() << " ms" << std::endl;
+        
+        // Display column names
+        std::cout << "\nColumns: ";
+        for (size_t i = 0; i < result.getColumnCount(); i++) {
+            std::cout << result.getColumnName(i);
+            if (i < result.getColumnCount() - 1) std::cout << ", ";
+        }
+        std::cout << std::endl;
+        
+        // Print the first few result rows
+        size_t rowsToShow = std::min(result.getRowCount(), size_t(5));
+        for (size_t i = 0; i < rowsToShow; i++) {
+            std::cout << "Row " << i << ": ";
+            std::cout << "CustomerName=" << result.getStringValue(1, i) << ", ";
+            std::cout << "ProductName=" << result.getStringValue(2, i) << ", ";
+            std::cout << "Price=" << result.getDoubleValue(3, i) << ", ";
+            std::cout << "TotalAmount=" << result.getDoubleValue(4, i) << std::endl;
+        }
+        
+        std::cout << "\nSalesOrders-Products JOIN test completed!" << std::endl;
+    }
+    catch (const std::exception &e) {
+        std::cerr << "Error in Product-Order JOIN test: " << e.what() << std::endl;
+    }
+}
+
 int main(int argc, char **argv)
 {
     std::string dataDirectory = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
     bool runCli = true;
-    std::string testName = "";
+    // std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
+    // bool runCli = false;
+    // std::string testName = "";
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++)
@@ -1070,7 +1047,7 @@ int main(int argc, char **argv)
             runCli = false;
             if (i + 1 < argc)
             {
-                testName = argv[++i];
+                // testName = argv[++i];
             }
             else
             {
@@ -1081,7 +1058,7 @@ int main(int argc, char **argv)
         else if (arg == "--test-all")
         {
             runCli = false;
-            testName = "all";
+            // testName = "all";
         }
     }
 
@@ -1108,19 +1085,23 @@ int main(int argc, char **argv)
         try
         {
             // This code would call into your existing test functions
-            std::cout << "Running test: " << testName << std::endl;
+            // std::cout << "Running test: " << testName << std::endl;
 
             // testSelect();
             testProject();
+            // testProject();
             // testComplexCondition();
             // testFilter();
             // testOrderBy();
             // testAggregator();
             // testJoin();
+            // testEmployeeOrderJoin();
+            testProductOrderJoin();
             // testSQLQueryProcessor();
             // testCSVLoading();
             // testDateTimeSupport();
             // testBooleanSelect();
+            // testCSVDateTimeSupport();
 
             std::cout << "All tests passed successfully!" << std::endl;
         }

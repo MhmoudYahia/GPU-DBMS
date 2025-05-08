@@ -59,6 +59,10 @@ namespace GPUDBMS
          */
         const std::string &getName() const;
 
+        void setName(const std::string& newName) {
+            m_name = newName;
+        }
+        
         /**
          * @brief Get the data type of the column
          *
@@ -216,6 +220,11 @@ namespace GPUDBMS
          * @param value The datetime value to append
          */
         void appendDateTimeValue(size_t columnIndex, const std::string &value);
+
+        /**
+         * @brief get table name
+         */
+        std::string getTableName() const;
 
         /**
          * @brief Validate a datetime string format
