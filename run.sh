@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e  # Exit immediately on error
-
 # Build directory
 BUILD_DIR="build"
 
@@ -13,11 +11,19 @@ fi
 # Navigate to build directory
 cd "$BUILD_DIR"
 
-echo "Running CMake..."
-cmake .. || { echo "CMake configuration failed."; exit 1; }
+# Generate build files
+cmake ..
 
-echo "Building project..."
-cmake --build . -- -j$(nproc) || { echo "Build failed."; exit 1; }
+# Build the project
+cmake --build . -- -j$(nproc)
 
-echo "Build successful! Running GPUDBMS..."
-./bin/GPUDBMS "$@"
+# Check if build was successful
+if [ $? -eq 0 ]; then
+    echo "Build successful! Running GPUDBMS..."
+    
+    # Run the executable
+    ./bin/GPUDBMS "$@"
+else
+    echo "Build failed. Please check the errors above."
+    exit 1
+fi

@@ -7,23 +7,6 @@
 #include "../../include/DataHandling/Table.hpp"
 #include "../../include/Utilities/GPU.cuh"
 
-#define CUDA_CHECK(call)                                                                                \
-    {                                                                                                   \
-        cudaError_t err = (call);                                                                       \
-        if (err != cudaSuccess)                                                                         \
-        {                                                                                               \
-            fprintf(stderr, "CUDA error at %s:%d - %s\n", __FILE__, __LINE__, cudaGetErrorString(err)); \
-            exit(1);                                                                                    \
-        }                                                                                               \
-    }
-
-#include <sys/mman.h>
-
-inline bool isPointerValid(const void *p)
-{
-    // Check if memory is readable
-    return (msync((void*)p, 1, MS_ASYNC) == 0 || errno != ENOMEM);
-}
 
 struct ConditionGPU
 {
