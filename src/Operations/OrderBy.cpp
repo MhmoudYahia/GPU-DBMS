@@ -177,7 +177,7 @@ namespace GPUDBMS
                     break;
                 }
             }
-            resultTable.finalizeRow();
+            // resultTable.finalizeRow();
         }
 
         return resultTable;

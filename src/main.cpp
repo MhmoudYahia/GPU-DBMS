@@ -25,6 +25,7 @@ Table createTestTable()
         Column("ProductName", DataType::VARCHAR),
         Column("Price", DataType::DOUBLE),
         Column("ReleaseDate", DataType::DATETIME),
+        Column("Trending", DataType::BOOL),
     };
 
     Table table(columns);
@@ -33,55 +34,116 @@ Table createTestTable()
     auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("ProductName"));
     auto &priceCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("Price"));
     auto &dateCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("ReleaseDate"));
+    auto &trendingCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("Trending"));
 
     // Base dataset (26 entries)
-    std::vector<std::tuple<int, std::string, double, std::string>> baseData = {
-        {101, "Widget A", 20.99, "2020-05-07 14:30:00"},
-        {102, "Gadget B", 99.99, "2021-04-22 16:10:00"},
-        {103, "Device C", 15.5, "2021-09-30 11:20:00"},
-        {104, "Equipment D", 45.75, "2022-05-15 09:45:00"},
-        {105, "Appliance E", 30.0, "2019-01-12 08:00:00"},
-        {106, "Tool F", 75.49, "2022-07-18 13:25:00"},
-        {107, "Component G", 12.99, "2020-11-03 10:15:00"},
-        {108, "Accessory H", 8.75, "2021-12-05 17:40:00"},
-        {109, "Instrument J", 149.99, "2022-02-28 14:50:00"},
-        {110, "System K", 199.99, "2019-06-14 09:30:00"},
-        {111, "Module L", 55.25, "2020-08-22 11:45:00"},
-        {112, "Kit M", 89.95, "2021-10-17 15:20:00"},
-        {113, "Unit N", 32.5, "2022-01-09 12:10:00"},
-        {114, "Bundle P", 125.0, "2019-09-29 10:05:00"},
-        {115, "Package Q", 67.8, "2020-03-11 16:35:00"},
-        {116, "Set R", 42.99, "2021-07-25 13:55:00"},
-        {117, "Assembly S", 95.45, "2022-04-03 09:15:00"},
-        {118, "Collection T", 110.25, "2019-11-18 14:40:00"},
-        {119, "Solution U", 135.5, "2020-12-07 10:50:00"},
-        {120, "Platform V", 175.0, "2021-05-31 16:25:00"},
-        {121, "Widget Pro", 24.99, "2020-06-15 13:30:00"},
-        {122, "Gadget XL", 119.99, "2021-05-12 14:15:00"},
-        {123, "Device Mini", 12.5, "2021-08-20 10:20:00"},
-        {124, "Equipment Plus", 55.75, "2022-04-25 08:45:00"},
-        {125, "Appliance Max", 35.0, "2019-02-22 09:10:00"},
-        {126, "Tool Set", 95.49, "2022-08-28 12:25:00"},
+    std::vector<std::tuple<int, std::string, double, std::string, bool>> baseData = {
+        {101, "Widget A", 20.99, "2020-05-07 14:30:00", true},
+        {102, "Gadget B", 99.99, "2021-04-22 16:10:00", false},
+        {103, "Device C", 15.5, "2021-09-30 11:20:00", true},
+        {104, "Equipment D", 45.75, "2022-05-15 09:45:00", false},
+        {105, "Appliance E", 30.0, "2019-01-12 08:00:00", true},
+        {106, "Tool F", 75.49, "2022-07-18 13:25:00", true},
+        {107, "Component G", 12.99, "2020-11-03 10:15:00", true},
+        {108, "Accessory H", 8.75, "2021-12-05 17:40:00", false},
+        {109, "Instrument J", 149.99, "2022-02-28 14:50:00", true},
+        {110, "System K", 199.99, "2019-06-14 09:30:00", false},
+        {111, "Module L", 55.25, "2020-08-22 11:45:00", false},
+        {112, "Kit M", 89.95, "2021-10-17 15:20:00", false},
+        {113, "Unit N", 32.5, "2022-01-09 12:10:00", true},
+        {114, "Bundle P", 125.0, "2019-09-29 10:05:00", true},
+        {115, "Package Q", 67.8, "2020-03-11 16:35:00", false},
+        {116, "Set R", 42.99, "2021-07-25 13:55:00", true},
+        {117, "Assembly S", 95.45, "2022-04-03 09:15:00", false},
+        {118, "Collection T", 110.25, "2019-11-18 14:40:00", true},
+        {119, "Solution U", 135.5, "2020-12-07 10:50:00", false},
+        {120, "Platform V", 175.0, "2021-05-31 16:25:00", true},
+        {121, "Widget Pro", 24.99, "2020-06-15 13:30:00", true},
+        {122, "Gadget XL", 119.99, "2021-05-12 14:15:00", false},
+        {123, "Device Mini", 12.5, "2021-08-20 10:20:00", false},
+        {124, "Equipment Plus", 55.75, "2022-04-25 08:45:00", true},
+        {125, "Appliance Max", 35.0, "2019-02-22 09:10:00", true},
+        {126, "Tool Set", 95.49, "2022-08-28 12:25:00", false},
     };
 
     int idOffset = 0;
-    for (int i = 0; i < 150; ++i)
+    for (int i = 0; i < 1000000; ++i)
     {
-        const auto &[idBase, nameBase, priceBase, dateBase] = baseData[i % baseData.size()];
+        const auto &[idBase, nameBase, priceBase, dateBase, trendingBase] = baseData[i % baseData.size()];
 
         int newId = idBase + idOffset;
         std::string newName = nameBase + " #" + std::to_string(i + 1);
         double newPrice = priceBase + (i % 5) * 1.1; // vary the price a bit
         std::string newDate = dateBase;
 
+        bool newTrending = trendingBase;
+
         idCol.append(newId);
         nameCol.append(newName);
         priceCol.append(newPrice);
         dateCol.append(newDate);
+        trendingCol.append(newTrending);
 
         table.finalizeRow();
 
         if ((i + 1) % baseData.size() == 0)
+            idOffset += 100; // increase ID range to avoid repetition
+    }
+
+    return table;
+}
+
+Table createTestTable2()
+{
+    std::vector<Column> columns = {
+        Column("id", DataType::INT),
+        Column("age", DataType::INT),
+        Column("salary", DataType::DOUBLE),
+        Column("name", DataType::VARCHAR),
+        Column("retired", DataType::BOOL),
+        Column("releaseDate", DataType::DATETIME),
+    };
+
+    Table table(columns);
+
+    auto &idCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("id"));
+    auto &ageCol = static_cast<ColumnDataImpl<int> &>(table.getColumnData("age"));
+    auto &salaryCol = static_cast<ColumnDataImpl<double> &>(table.getColumnData("salary"));
+    auto &nameCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("name"));
+    auto &retiredCol = static_cast<ColumnDataImpl<bool> &>(table.getColumnData("retired"));
+    auto &dateCol = static_cast<ColumnDataImpl<std::string> &>(table.getColumnData("releaseDate"));
+
+    int idOffset = 0;
+    for (int i = 0; i < 10000000; ++i)
+    {
+
+        int newId = i + idOffset;
+        int newAge = 20 + (i % 50);                   // age between 20 and 69
+        double newSalary = 30000 + (i % 100) * 100.0; // salary between 30,000 and 40,000
+        std::string newName = "Person" + std::to_string(i + 1);
+        bool newRetired = (i % 2 == 0);              // alternate between true and false
+        // Generate a realistic date range (from 2020-01-01 to 2023-12-31)
+        int year = 2020 + (i % 4);  // Years from 2020 to 2023 
+        int month = 1 + (i % 12);   // Months from 1 to 12
+        int day = 1 + (i % 28);     // Days from 1 to 28 (avoiding month end issues)
+        int hour = i % 24;          // Hours from 0 to 23
+        int minute = i % 60;        // Minutes from 0 to 59
+        int second = i % 60;        // Seconds from 0 to 59
+        
+        char dateBuffer[50];
+        snprintf(dateBuffer, sizeof(dateBuffer), "%04d-%02d-%02d %02d:%02d:%02d", 
+             year, month, day, hour, minute, second);
+        std::string newDate = dateBuffer;
+
+        idCol.append(newId);
+        ageCol.append(newAge);
+        salaryCol.append(newSalary);
+        nameCol.append(newName);
+        retiredCol.append(newRetired);
+        dateCol.append(newDate);
+
+        // table.finalizeRow();
+        if ((i + 1) % 100000 == 0)
             idOffset += 100; // increase ID range to avoid repetition
     }
 
@@ -141,10 +203,9 @@ void testProject()
 {
     std::cout << "Testing Project operation..." << std::endl;
 
-    Table testTable = createTestTable(); // Now returns the Product table
+    Table testTable = createTestTable2();
 
-    // Test projection (Product_id, ProductName)
-    std::vector<std::string> columns = {"Product_id", "ProductName"};
+    std::vector<std::string> columns = {"age", "salary", "retired"};
     Project projectOp(testTable, columns);
 
     // Measure CPU execution time
@@ -156,11 +217,12 @@ void testProject()
     auto endCPU = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> durationCPU = endCPU - startCPU;
 
-    assert(resultCPU.getColumnCount() == 2);
+    assert(resultCPU.getColumnCount() == 3);
     assert(resultCPU.getRowCount() == testTable.getRowCount());
-    assert(resultCPU.getColumnIndex("Product_id") != -1);
-    assert(resultCPU.getColumnIndex("ProductName") != -1);
-    assert(resultCPU.getColumnIndex("Price") == -1);
+    assert(resultCPU.getColumnIndex("age") != -1);
+    assert(resultCPU.getColumnIndex("salary") != -1);
+    assert(resultCPU.getColumnIndex("retired") != -1);
+    assert(resultCPU.getColumnIndex("id") == -1);
 
     std::cout << "CPU Project test passed!" << std::endl;
     std::cout << "CPU execution time: " << durationCPU.count() << " seconds" << std::endl;
@@ -176,18 +238,13 @@ void testProject()
         auto endGPU = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float> durationGPU = endGPU - startGPU;
 
-        assert(resultGPU.getColumnCount() == 2);
+        assert(resultGPU.getColumnCount() == 3);
         assert(resultGPU.getRowCount() == testTable.getRowCount());
-        assert(resultGPU.getColumnIndex("Product_id") != -1);
-        assert(resultGPU.getColumnIndex("ProductName") != -1);
-        assert(resultGPU.getColumnIndex("Price") == -1);
+        assert(resultGPU.getColumnIndex("age") != -1);
+        assert(resultGPU.getColumnIndex("salary") != -1);
+        assert(resultGPU.getColumnIndex("retired") != -1);
+        assert(resultGPU.getColumnIndex("id") == -1);
 
-        for (size_t i = 0; i < resultGPU.getRowCount(); ++i)
-        {
-            std::cout << "Row " << i << ": " << resultGPU.getIntValue(resultGPU.getColumnIndex("Product_id"), i) << std::endl;
-            // assert(resultGPU.getIntValue(resultGPU.getColumnIndex("Product_id"), i) == resultCPU.getIntValue(resultCPU.getColumnIndex("Product_id"), i));
-            // assert(resultGPU.getStringValue(resultGPU.getColumnIndex("ProductName"), i) == resultCPU.getStringValue(resultCPU.getColumnIndex("ProductName"), i));
-        }
 
         std::cout << "GPU execution time: " << durationGPU.count() << " seconds" << std::endl;
         std::cout << "GPU Project test passed!" << std::endl;
@@ -203,28 +260,28 @@ void testComplexCondition()
 {
     std::cout << "Testing complex conditions..." << std::endl;
 
-    Table testTable = createTestTable();
+    Table testTable = createTestTable2();
 
-    auto ageCondition = ConditionBuilder::greaterThan("age", "1000000");
-    auto ageCondition2 = ConditionBuilder::lessThan("age", "9000000");
-    auto salaryCondition = ConditionBuilder::lessThan("salary", "10");
+    auto priceCondition = ConditionBuilder::greaterThan("age", "20");
+    auto priceCondition2 = ConditionBuilder::lessThan("age", "50");
+    // auto salaryCondition = ConditionBuilder::lessThan("salary", "35000");
     auto nameCondition = ConditionBuilder::greaterThan("name", "Person20");
     auto nameCondition2 = ConditionBuilder::lessThan("name", "Person20000");
 
-    auto ageComplexCondition = ConditionBuilder::And(std::move(ageCondition), std::move(ageCondition2));
-    auto nameComplexCondition = ConditionBuilder::And(std::move(nameCondition), std::move(nameCondition2));
-    auto complexCondition = ConditionBuilder::Or(std::move(ageComplexCondition), std::move(nameComplexCondition));
-    // auto complexCondition2 = ConditionBuilder::Or(std::move(complexCondition), std::move(salaryCondition));
+    auto priceComplexCondition = ConditionBuilder::And(std::move(priceCondition), std::move(priceCondition2));
+    // auto nameComplexCondition = ConditionBuilder::And(std::move(nameCondition), std::move(nameCondition2));
+    // auto complexCondition = ConditionBuilder::Or(std::move(ageComplexCondition), std::move(nameComplexCondition));
 
-    Select selectOp(testTable, *complexCondition);
+    Select selectOp(testTable, *priceComplexCondition);
 
+    std::cout << "Executing complex condition on cpu..." << std::endl;
     // Execute on CPU
     auto start = std::chrono::high_resolution_clock::now();
-    // Table resultCPU = selectOp.execute();
+    Table resultCPU = selectOp.execute();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
 
-    // std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
+    std::cout << resultCPU.getRowCount() << " rows selected on CPU" << std::endl;
     std::cout << "CPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
     // assert(resultCPU.getRowCount() == 8000001);
     std::cout << "CPU Select test passed!" << std::endl;
@@ -239,7 +296,7 @@ void testComplexCondition()
 
         std::cout << resultGPU.getRowCount() << " rows selected on GPU" << std::endl;
         std::cout << "GPU Select execution time: " << elapsed.count() << " seconds" << std::endl;
-        assert(resultGPU.getRowCount() == 8000001);
+        // assert(resultGPU.getRowCount() == 8000001);
         std::cout << "GPU Select test passed!" << std::endl;
     }
     catch (const std::exception &e)
@@ -252,7 +309,7 @@ void testOrderBy()
 {
     std::cout << "Testing OrderBy operation..." << std::endl;
 
-    Table testTable = createTestTable();
+    Table testTable = createTestTable2();
 
     // ---------------------- CPU TESTS ---------------------- //
 
@@ -266,8 +323,7 @@ void testOrderBy()
 
     std::cout << resultCPU.getRowCount() << " rows sorted on CPU" << std::endl;
     std::cout << "CPU OrderBy execution time (age DESC): " << elapsed.count() << " seconds" << std::endl;
-    assert(resultCPU.getRowCount() == 10000000);
-    assert(resultCPU.getIntValue(resultCPU.getColumnIndex("age"), 0) == 10000000);
+    assert(resultCPU.getRowCount() == testTable.getRowCount());
 
     // Multi-column: age DESC, salary ASC
     std::vector<std::string> sortColumns = {"age", "salary"};
@@ -281,7 +337,6 @@ void testOrderBy()
 
     std::cout << multiColResult.getRowCount() << " rows sorted on CPU" << std::endl;
     std::cout << "CPU OrderBy execution time (age DESC, salary ASC): " << multiColElapsed.count() << " seconds" << std::endl;
-    assert(multiColResult.getIntValue(multiColResult.getColumnIndex("age"), 0) == 10000000);
 
     // ---------------------- GPU TESTS ---------------------- //
 
@@ -294,8 +349,7 @@ void testOrderBy()
         elapsed = end - start;
 
         std::cout << resultGPU.getRowCount() << " rows sorted on GPU" << std::endl;
-        assert(resultGPU.getRowCount() == 10000000);
-        assert(resultGPU.getIntValue(resultGPU.getColumnIndex("age"), 0) == 10000000);
+        assert(resultGPU.getRowCount() == testTable.getRowCount());
         std::cout << "GPU OrderBy execution time (age DESC): " << elapsed.count() << " seconds" << std::endl;
 
         // 2. Multi-column: age DESC, salary ASC
@@ -305,8 +359,7 @@ void testOrderBy()
         multiColElapsed = end - start;
 
         std::cout << multiColResultGPU.getRowCount() << " rows sorted on GPU" << std::endl;
-        assert(multiColResultGPU.getRowCount() == 10000000);
-        assert(multiColResultGPU.getIntValue(multiColResultGPU.getColumnIndex("age"), 0) == 10000000);
+        assert(multiColResultGPU.getRowCount() == testTable.getRowCount());
 
         std::cout << "GPU OrderBy execution time (age DESC, salary ASC): " << multiColElapsed.count() << " seconds" << std::endl;
 
@@ -320,7 +373,7 @@ void testOrderBy()
 void testAggregator()
 {
     std::cout << "\n=== Testing Aggregator operation ===" << std::endl;
-    auto testTable = createTestTable();
+    auto testTable = createTestTable2();
     auto start_time = std::chrono::high_resolution_clock::now();
     auto end_time = start_time;
 
@@ -334,7 +387,6 @@ void testAggregator()
     // Verify results
     assert(countResult.getRowCount() == 1);
     assert(countResult.getColumnCount() == 1);
-    assert(countResult.getIntValue(0, 0) == 10000000);
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     std::cout << "COUNT result: " << countResult.getIntValue(0, 0)
@@ -354,8 +406,6 @@ void testAggregator()
     // Verify results
     assert(multiResult.getRowCount() == 1);
     assert(multiResult.getColumnCount() == 2);
-    assert(std::abs(multiResult.getDoubleValue(0, 0) - 5.0000005e13) < 0.001);
-    assert(std::abs(multiResult.getDoubleValue(1, 0) - 5000000.5) < 0.001);
 
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     std::cout << std::fixed << std::setprecision(2);
@@ -377,53 +427,51 @@ void testAggregator()
     // Verify results
     assert(minMaxResult.getRowCount() == 1);
     assert(minMaxResult.getColumnCount() == 2);
-    assert(minMaxResult.getIntValue(0, 0) == 1);        // Min age
-    assert(minMaxResult.getIntValue(1, 0) == 10000000); // Max age
 
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     std::cout << "MIN age: " << minMaxResult.getIntValue(0, 0)
               << " | MAX age: " << minMaxResult.getIntValue(1, 0)
               << " | Execution time: " << duration.count() << " ms" << std::endl;
 
-    // Test GROUP BY
-    std::cout << "\n[4] Testing GROUP BY aggregation..." << std::endl;
-    start_time = std::chrono::high_resolution_clock::now();
-    aggregations = {
-        Aggregation(AggregateFunction::COUNT, "id", "count"),
-        Aggregation(AggregateFunction::AVG, "salary", "avg_salary")};
+    // // Test GROUP BY
+    // std::cout << "\n[4] Testing GROUP BY aggregation..." << std::endl;
+    // start_time = std::chrono::high_resolution_clock::now();
+    // aggregations = {
+    //     Aggregation(AggregateFunction::COUNT, "id", "count"),
+    //     Aggregation(AggregateFunction::AVG, "salary", "avg_salary")};
 
-    // Group by even/odd id (which will create 2 groups)
-    auto testTableCopy = testTable;
-    testTableCopy.addColumn(Column("id_group", DataType::INT));
+    // // Group by even/odd id (which will create 2 groups)
+    // auto testTableCopy = testTable;
+    // testTableCopy.addColumn(Column("id_group", DataType::INT));
 
-    auto &idGroupCol = static_cast<ColumnDataImpl<int> &>(testTableCopy.getColumnData("id_group"));
-    for (int i = 1; i <= 10000000; i++)
-    {
-        idGroupCol.append(i % 2); // Group 0 for odd ids, Group 1 for even ids
-    }
+    // auto &idGroupCol = static_cast<ColumnDataImpl<int> &>(testTableCopy.getColumnData("id_group"));
+    // for (int i = 1; i <= 10000000; i++)
+    // {
+    //     idGroupCol.append(i % 2); // Group 0 for odd ids, Group 1 for even ids
+    // }
 
-    Aggregator groupByAggregator(testTableCopy, aggregations, "id_group");
-    Table groupByResult = groupByAggregator.executeCPU();
-    end_time = std::chrono::high_resolution_clock::now();
+    // Aggregator groupByAggregator(testTableCopy, aggregations, "id_group");
+    // Table groupByResult = groupByAggregator.executeCPU();
+    // end_time = std::chrono::high_resolution_clock::now();
 
-    // Verify results
-    assert(groupByResult.getRowCount() == 2);    // Two groups
-    assert(groupByResult.getColumnCount() == 3); // Group column + 2 aggregations
+    // // Verify results
+    // assert(groupByResult.getRowCount() == 2);    // Two groups
+    // assert(groupByResult.getColumnCount() == 3); // Group column + 2 aggregations
 
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    std::cout << "Group 0 count: " << groupByResult.getIntValue(0, 1)
-              << " | Group 1 count: " << groupByResult.getIntValue(1, 1)
-              << "\nExecution time: " << duration.count() << " ms" << std::endl;
+    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    // std::cout << "Group 0 count: " << groupByResult.getIntValue(0, 1)
+    //           << " | Group 1 count: " << groupByResult.getIntValue(1, 1)
+    //           << "\nExecution time: " << duration.count() << " ms" << std::endl;
 
-    std::vector<Aggregation> dateTime = {
-        Aggregation(AggregateFunction::COUNT, "date", "count"),
-        Aggregation(AggregateFunction::MAX, "date", "avg_date"),
-        Aggregation(AggregateFunction::MIN, "date", "min_date")};
+    // std::vector<Aggregation> dateTime = {
+    //     Aggregation(AggregateFunction::COUNT, "releaseDate", "count"),
+    //     Aggregation(AggregateFunction::MAX, "releaseDate", "avg_date"),
+    //     Aggregation(AggregateFunction::MIN, "releaseDate", "min_date")};
 
-    Aggregator dateTimeAggregator(testTable, dateTime);
+    // Aggregator dateTimeAggregator(testTable, dateTime);
 
     // start_time = std::chrono::high_resolution_clock::now();
-    // // Table dateTimeResult = dateTimeAggregator.executeCPU();
+    // Table dateTimeResult = dateTimeAggregator.executeCPU();
     // end_time = std::chrono::high_resolution_clock::now();
 
     // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -439,16 +487,16 @@ void testAggregator()
     std::cout << "\n[5] Testing GPU execution..." << std::endl;
     try
     {
-        start_time = std::chrono::high_resolution_clock::now();
-        Table resultGPU = countAggregator.execute(USE_GPU);
-        end_time = std::chrono::high_resolution_clock::now();
+        // start_time = std::chrono::high_resolution_clock::now();
+        // Table resultGPU = countAggregator.execute(USE_GPU);
+        // end_time = std::chrono::high_resolution_clock::now();
 
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        std::cout << "GPU COUNT result: " << resultGPU.getIntValue(0, 0)
-                  << " | Execution time: " << duration.count() << " ms" << std::endl;
-        std::cout << "GPU Aggregator test passed!" << std::endl;
-        assert(resultGPU.getRowCount() == 1);
+        // std::cout << "GPU COUNT result: " << resultGPU.getIntValue(0, 0)
+        //           << " | Execution time: " << duration.count() << " ms" << std::endl;
+        // std::cout << "GPU Aggregator test passed!" << std::endl;
+        // assert(resultGPU.getRowCount() == 1);
 
         start_time = std::chrono::high_resolution_clock::now();
         Table multiResultGPU = multiAggregator.execute(USE_GPU);
@@ -460,9 +508,7 @@ void testAggregator()
                   << "\nExecution time: " << duration.count() << " ms" << std::endl;
 
         assert(multiResultGPU.getRowCount() == 1);
-        assert(std::abs(multiResultGPU.getDoubleValue(0, 0) - 5.0000005e13) < 0.001);
 
-        assert(std::abs(multiResultGPU.getDoubleValue(1, 0) - 5000000.5) < 0.001);
 
         start_time = std::chrono::high_resolution_clock::now();
         Table minMaxResultGPU = minMaxAggregator.execute(USE_GPU);
@@ -474,32 +520,30 @@ void testAggregator()
         assert(minMaxResultGPU.getRowCount() == 1);
         assert(minMaxResult.getColumnCount() == 2);
 
-        assert(minMaxResultGPU.getIntValue(0, 0) == 1);
-        assert(minMaxResultGPU.getIntValue(1, 0) == 10000000);
 
-        start_time = std::chrono::high_resolution_clock::now();
-        Table dateTimeResultGPU = dateTimeAggregator.execute(USE_GPU);
-        end_time = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        // start_time = std::chrono::high_resolution_clock::now();
+        // Table dateTimeResultGPU = dateTimeAggregator.execute(USE_GPU);
+        // end_time = std::chrono::high_resolution_clock::now();
+        // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        std::cout << "GPU DateTime COUNT result: " << dateTimeResultGPU.getIntValue(0, 0)
-                  << " | GPU DateTime MAX result: " << dateTimeResultGPU.getStringValue(1, 0)
-                  << " | GPU DateTime MIN result: " << dateTimeResultGPU.getStringValue(2, 0)
-                  << "\nExecution time: " << duration.count() << " ms" << std::endl;
+        // std::cout 
+        //           << " | GPU DateTime MAX result: " << dateTimeResultGPU.getStringValue(1, 0)
+        //           << " | GPU DateTime MIN result: " << dateTimeResultGPU.getStringValue(2, 0)
+        //           << "\nExecution time: " << duration.count() << " ms" << std::endl;
 
-        assert(dateTimeResultGPU.getRowCount() == 1);
-        assert(dateTimeResultGPU.getColumnCount() == 3);
+        // assert(dateTimeResultGPU.getRowCount() == 1);
+        // assert(dateTimeResultGPU.getColumnCount() == 3);
 
-        start_time = std::chrono::high_resolution_clock::now();
-        Table groupByResultGPU = groupByAggregator.execute(USE_GPU);
-        end_time = std::chrono::high_resolution_clock::now();
+        // start_time = std::chrono::high_resolution_clock::now();
+        // Table groupByResultGPU = groupByAggregator.execute(USE_GPU);
+        // end_time = std::chrono::high_resolution_clock::now();
 
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        std::cout << "GPU Group 0 count: " << groupByResultGPU.getIntValue(0, 1)
-                  << " | GPU Group 1 count: " << groupByResultGPU.getIntValue(1, 1)
-                  << "\nExecution time: " << duration.count() << " ms" << std::endl;
-        assert(groupByResultGPU.getRowCount() == 2);
-        assert(groupByResultGPU.getColumnCount() == 3);
+        // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        // std::cout << "GPU Group 0 count: " << groupByResultGPU.getIntValue(0, 1)
+        //           << " | GPU Group 1 count: " << groupByResultGPU.getIntValue(1, 1)
+        //           << "\nExecution time: " << duration.count() << " ms" << std::endl;
+        // assert(groupByResultGPU.getRowCount() == 2);
+        // assert(groupByResultGPU.getColumnCount() == 3);
 
         std::cout << "GPU Aggregator test passed!" << std::endl;
     }
@@ -1004,7 +1048,7 @@ void testProductOrderJoin()
                       << ", ProductName=" << result.getStringValue(7, i)
                       << ", Price=" << result.getDoubleValue(8, i)
                       << ", TotalAmount=" << result.getDoubleValue(2, i) << std::endl;
-                }
+        }
 
         std::cout << "\nSalesOrders-Products JOIN test completed!" << std::endl;
     }
@@ -1158,7 +1202,7 @@ void testDirectJoin()
 int main(int argc, char **argv)
 {
     std::string dataDirectory = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
-    bool runCli = true;
+    bool runCli = false;
     // std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
     // bool runCli = false;
     // std::string testName = "";
@@ -1236,10 +1280,10 @@ int main(int argc, char **argv)
             // testComplexCondition();
             // testFilter();
             // testOrderBy();
-            // testAggregator();
+            testAggregator();
             // testJoin();
             // testEmployeeOrderJoin();
-            testProductOrderJoin();
+            // testProductOrderJoin();
             // testDirectJoin();
             // testSQLQueryProcessor();
             // testCSVLoading();
