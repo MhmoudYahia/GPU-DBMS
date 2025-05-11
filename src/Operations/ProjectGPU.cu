@@ -287,5 +287,7 @@ extern "C" GPUDBMS::Table launchProjectKernel(
     cudaFree(d_outputCols);
     cudaFree(d_projIndices);
 
+    cudaDeviceReset();
+
     return resultTable;
 }

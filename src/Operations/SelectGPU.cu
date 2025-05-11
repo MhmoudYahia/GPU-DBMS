@@ -458,7 +458,7 @@ extern "C" GPUDBMS::Table launchSelectKernel(
             break;
         }
 
-        if (cond.columnInfo.type == GPUDBMS::DataType::DATETIME || cond.columnInfo.type == GPUDBMS::DataType::DATE|| cond.columnInfo.type == GPUDBMS::DataType::STRING || cond.columnInfo.type == GPUDBMS::DataType::VARCHAR)
+        if (cond.columnInfo.type == GPUDBMS::DataType::DATETIME || cond.columnInfo.type == GPUDBMS::DataType::DATE || cond.columnInfo.type == GPUDBMS::DataType::STRING || cond.columnInfo.type == GPUDBMS::DataType::VARCHAR)
         {
 
             cudaMalloc(&d_queryValue, cond.columnInfo.count * cond.columnInfo.stride);
@@ -566,6 +566,8 @@ extern "C" GPUDBMS::Table launchSelectKernel(
 
     delete[] h_outputFlags;
 
+    cudaDeviceReset();
+
     return m_inputTable.getSlicedTable(includedRows);
 }
 
@@ -636,8 +638,6 @@ __device__ bool compare(GPUDBMS::ComparisonOperator op, double a, double b)
         return false;
     }
 }
-
-
 
 __device__ bool compareString(GPUDBMS::ComparisonOperator op, const char *a, const char *b)
 {

@@ -236,6 +236,7 @@ namespace GPUDBMS
             // Display the result
             displayResultTable(result);
 
+
             // Show timing if enabled
             if (m_showTiming)
             {

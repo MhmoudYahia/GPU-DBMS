@@ -221,6 +221,8 @@ extern "C" GPUDBMS::Table launchOrderByKernel(
     cudaFree(d_keys);
     cudaFree(d_indices);
 
+    cudaDeviceReset();
+
     // Return sorted table
     return inputTable.getSlicedTable(sortedIndices);
 }

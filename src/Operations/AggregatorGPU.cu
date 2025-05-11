@@ -892,5 +892,7 @@ extern "C" GPUDBMS::Table launchAggregationKernel(
         cudaFree(d_filterFlags);
     }
 
+    cudaDeviceReset();
+
     return resultTable;
 }

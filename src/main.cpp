@@ -704,7 +704,7 @@ void testCSVDateTimeSupport()
     try
     {
         // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+        SQLQueryProcessor processor("/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data");
 
         // Print the Products table schema to verify column types
         std::cout << "\n--- Products Table Schema ---\n";
@@ -953,7 +953,7 @@ void testProductOrderJoin()
     try
     {
         // Initialize SQLQueryProcessor with the data directory
-        SQLQueryProcessor processor("/mnt/g/MyRepos/SQLQueryProcessor/data");
+        SQLQueryProcessor processor("/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data");
 
         // Print table information to verify tables are loaded correctly
         std::cout << "\n--- Products Table Info ---" << std::endl;
@@ -1021,7 +1021,7 @@ void testDirectJoin()
     try
     {
         // Load tables directly from CSV files
-        std::string dataDir = "/mnt/g/MyRepos/SQLQueryProcessor/data";
+        std::string dataDir = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
         CSVProcessor csvProcessor;
 
         // Load SalesOrders table
@@ -1157,7 +1157,7 @@ void testDirectJoin()
 
 int main(int argc, char **argv)
 {
-    std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
+    std::string dataDirectory = "/media/mohamed/0B370EA20B370EA2/CMP1Materials/Forth/Second/PC/Project/GPU-DBMS/data";
     bool runCli = true;
     // std::string dataDirectory = "/mnt/g/MyRepos/SQLQueryProcessor/data";
     // bool runCli = false;

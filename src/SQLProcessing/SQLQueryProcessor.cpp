@@ -486,7 +486,7 @@ namespace GPUDBMS
             }
 
             Aggregator aggregator(resultTable, aggregations, groupByColumn);
-            resultTable = aggregator.execute(useGPU);
+            resultTable = aggregator.execute();
         }
         // If no aggregation, handle normal SELECT (projection)
         else if (!stmt->selectList->empty() && (*stmt->selectList)[0]->type != hsql::kExprStar)
@@ -521,7 +521,7 @@ namespace GPUDBMS
             {
                 resultTable.printTableInfo();
                 Project projectOp(resultTable, projectColumns);
-                resultTable = projectOp.execute(useGPU);
+                resultTable = projectOp.execute();
             }
         }
 
@@ -536,7 +536,7 @@ namespace GPUDBMS
                 {
                     SortOrder sortOrder = order->type == hsql::kOrderAsc ? SortOrder::ASC : SortOrder::DESC;
                     OrderBy orderByOp(resultTable, order->expr->name, sortOrder);
-                    resultTable = orderByOp.execute(useGPU );
+                    resultTable = orderByOp.execute();
                 }
                 else
                 {
@@ -563,7 +563,7 @@ namespace GPUDBMS
                 }
 
                 OrderBy orderByOp(resultTable, sortColumns, sortOrders);
-                resultTable = orderByOp.execute(useGPU);
+                resultTable = orderByOp.execute();
             }
         }
 

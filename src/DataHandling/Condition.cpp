@@ -82,7 +82,6 @@ namespace GPUDBMS
         // Find the index of the column in columnIndices
         auto it = columnNameToIndex.find(m_columnName);
 
-        printf("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHns2t");
         if (it == columnNameToIndex.end())
         {
             return false; // Column not found
